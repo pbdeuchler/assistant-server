@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	dao "github.com/pbdeuchler/assistant-mcp/dao/postgres"
+	dao "github.com/pbdeuchler/assistant-server/dao/postgres"
 )
 
 type PreferencesHandlers struct{ dao assistant }

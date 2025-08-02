@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/pbdeuchler/assistant-mcp/dao/postgres"
-	"github.com/pbdeuchler/assistant-mcp/service"
+	"github.com/pbdeuchler/assistant-server/dao/postgres"
+	"github.com/pbdeuchler/assistant-server/service"
 )
 
 // Integration tests that test the complete flow from HTTP request to response
@@ -44,12 +44,12 @@ func newMockIntegrationDAO() *mockIntegrationDAO {
 func (m *mockIntegrationDAO) CreateTodo(ctx context.Context, t postgres.Todo) (postgres.Todo, error) {
 	uid := fmt.Sprintf("todo-%d", m.nextUID)
 	m.nextUID++
-	
+
 	now := time.Now()
 	t.UID = uid
 	t.CreatedAt = now
 	t.UpdatedAt = now
-	
+
 	m.todos[uid] = t
 	return t, nil
 }
@@ -66,7 +66,7 @@ func (m *mockIntegrationDAO) ListTodos(ctx context.Context, options postgres.Lis
 	for _, todo := range m.todos {
 		result = append(result, todo)
 	}
-	
+
 	// Simple filtering for testing
 	if options.WhereClause != "" && len(options.WhereArgs) > 0 {
 		filtered := []postgres.Todo{}
@@ -83,18 +83,18 @@ func (m *mockIntegrationDAO) ListTodos(ctx context.Context, options postgres.Lis
 		}
 		result = filtered
 	}
-	
+
 	// Apply limit and offset
 	start := options.Offset
 	if start > len(result) {
 		return []postgres.Todo{}, nil
 	}
-	
+
 	end := start + options.Limit
 	if end > len(result) {
 		end = len(result)
 	}
-	
+
 	return result[start:end], nil
 }
 
@@ -102,13 +102,13 @@ func (m *mockIntegrationDAO) UpdateTodo(ctx context.Context, uid string, t postg
 	if _, exists := m.todos[uid]; !exists {
 		return postgres.Todo{}, fmt.Errorf("todo not found")
 	}
-	
+
 	t.UID = uid
 	t.UpdatedAt = time.Now()
 	if existing := m.todos[uid]; t.CreatedAt.IsZero() {
 		t.CreatedAt = existing.CreatedAt
 	}
-	
+
 	m.todos[uid] = t
 	return t, nil
 }
@@ -141,17 +141,17 @@ func (m *mockIntegrationDAO) ListBackgrounds(ctx context.Context, options postgr
 	for _, bg := range m.backgrounds {
 		result = append(result, bg)
 	}
-	
+
 	start := options.Offset
 	if start > len(result) {
 		return []postgres.Background{}, nil
 	}
-	
+
 	end := start + options.Limit
 	if end > len(result) {
 		end = len(result)
 	}
-	
+
 	return result[start:end], nil
 }
 
@@ -159,13 +159,13 @@ func (m *mockIntegrationDAO) UpdateBackground(ctx context.Context, key string, b
 	if _, exists := m.backgrounds[key]; !exists {
 		return postgres.Background{}, fmt.Errorf("background not found")
 	}
-	
+
 	b.Key = key
 	b.UpdatedAt = time.Now()
 	if existing := m.backgrounds[key]; b.CreatedAt.IsZero() {
 		b.CreatedAt = existing.CreatedAt
 	}
-	
+
 	m.backgrounds[key] = b
 	return b, nil
 }
@@ -182,11 +182,11 @@ func (m *mockIntegrationDAO) CreatePreferences(ctx context.Context, p postgres.P
 	if m.preferences[p.Key] == nil {
 		m.preferences[p.Key] = make(map[string]postgres.Preferences)
 	}
-	
+
 	now := time.Now()
 	p.CreatedAt = now
 	p.UpdatedAt = now
-	
+
 	m.preferences[p.Key][p.Specifier] = p
 	return p, nil
 }
@@ -207,17 +207,17 @@ func (m *mockIntegrationDAO) ListPreferences(ctx context.Context, options postgr
 			result = append(result, pref)
 		}
 	}
-	
+
 	start := options.Offset
 	if start > len(result) {
 		return []postgres.Preferences{}, nil
 	}
-	
+
 	end := start + options.Limit
 	if end > len(result) {
 		end = len(result)
 	}
-	
+
 	return result[start:end], nil
 }
 
@@ -230,7 +230,7 @@ func (m *mockIntegrationDAO) UpdatePreferences(ctx context.Context, key, specifi
 			if existing := keyMap[specifier]; p.CreatedAt.IsZero() {
 				p.CreatedAt = existing.CreatedAt
 			}
-			
+
 			keyMap[specifier] = p
 			return p, nil
 		}
@@ -253,11 +253,11 @@ func (m *mockIntegrationDAO) CreateNotes(ctx context.Context, n postgres.Notes) 
 		n.ID = fmt.Sprintf("note-%d", m.nextUID)
 		m.nextUID++
 	}
-	
+
 	now := time.Now()
 	n.CreatedAt = now
 	n.UpdatedAt = now
-	
+
 	m.notes[n.ID] = n
 	return n, nil
 }
@@ -274,17 +274,17 @@ func (m *mockIntegrationDAO) ListNotes(ctx context.Context, options postgres.Lis
 	for _, note := range m.notes {
 		result = append(result, note)
 	}
-	
+
 	start := options.Offset
 	if start > len(result) {
 		return []postgres.Notes{}, nil
 	}
-	
+
 	end := start + options.Limit
 	if end > len(result) {
 		end = len(result)
 	}
-	
+
 	return result[start:end], nil
 }
 
@@ -292,13 +292,13 @@ func (m *mockIntegrationDAO) UpdateNotes(ctx context.Context, id string, n postg
 	if _, exists := m.notes[id]; !exists {
 		return postgres.Notes{}, fmt.Errorf("note not found")
 	}
-	
+
 	n.ID = id
 	n.UpdatedAt = time.Now()
 	if existing := m.notes[id]; n.CreatedAt.IsZero() {
 		n.CreatedAt = existing.CreatedAt
 	}
-	
+
 	m.notes[id] = n
 	return n, nil
 }
@@ -313,12 +313,12 @@ func (m *mockIntegrationDAO) DeleteNotes(ctx context.Context, id string) error {
 
 func setupIntegrationTestSuite() *IntegrationTestSuite {
 	dao := newMockIntegrationDAO()
-	
+
 	r := chi.NewRouter()
 	r.Mount("/todos", service.NewHandlers(dao))
 	r.Mount("/backgrounds", service.NewBackgroundHandlers(dao))
 	r.Mount("/preferences", service.NewPreferencesHandlers(dao))
-	
+
 	return &IntegrationTestSuite{
 		router: r,
 		dao:    dao,
@@ -327,99 +327,99 @@ func setupIntegrationTestSuite() *IntegrationTestSuite {
 
 func TestTodoCompleteWorkflow(t *testing.T) {
 	suite := setupIntegrationTestSuite()
-	
+
 	// Test Create Todo
 	todoJSON := `{"title":"Integration Test Todo","description":"Testing complete workflow","priority":3}`
 	req := httptest.NewRequest("POST", "/todos/", strings.NewReader(todoJSON))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("Create todo failed: %d", w.Code)
 	}
-	
+
 	var createdTodo postgres.Todo
 	if err := json.NewDecoder(w.Body).Decode(&createdTodo); err != nil {
 		t.Fatalf("Failed to decode created todo: %v", err)
 	}
-	
+
 	// Test Get Todo
 	req = httptest.NewRequest("GET", "/todos/"+createdTodo.UID, nil)
 	w = httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("Get todo failed: %d", w.Code)
 	}
-	
+
 	var fetchedTodo postgres.Todo
 	if err := json.NewDecoder(w.Body).Decode(&fetchedTodo); err != nil {
 		t.Fatalf("Failed to decode fetched todo: %v", err)
 	}
-	
+
 	if fetchedTodo.UID != createdTodo.UID {
 		t.Errorf("Expected UID %s, got %s", createdTodo.UID, fetchedTodo.UID)
 	}
-	
+
 	// Test Update Todo
 	updateJSON := `{"title":"Updated Todo Title","description":"Updated description","priority":2}`
 	req = httptest.NewRequest("PUT", "/todos/"+createdTodo.UID, strings.NewReader(updateJSON))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("Update todo failed: %d", w.Code)
 	}
-	
+
 	var updatedTodo postgres.Todo
 	if err := json.NewDecoder(w.Body).Decode(&updatedTodo); err != nil {
 		t.Fatalf("Failed to decode updated todo: %v", err)
 	}
-	
+
 	if updatedTodo.Title != "Updated Todo Title" {
 		t.Errorf("Expected title 'Updated Todo Title', got '%s'", updatedTodo.Title)
 	}
-	
+
 	// Test List Todos
 	req = httptest.NewRequest("GET", "/todos/", nil)
 	w = httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("List todos failed: %d", w.Code)
 	}
-	
+
 	var todos []postgres.Todo
 	if err := json.NewDecoder(w.Body).Decode(&todos); err != nil {
 		t.Fatalf("Failed to decode todos list: %v", err)
 	}
-	
+
 	if len(todos) != 1 {
 		t.Errorf("Expected 1 todo, got %d", len(todos))
 	}
-	
+
 	// Test Delete Todo
 	req = httptest.NewRequest("DELETE", "/todos/"+createdTodo.UID, nil)
 	w = httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusNoContent {
 		t.Fatalf("Delete todo failed: %d", w.Code)
 	}
-	
+
 	// Verify deletion
 	req = httptest.NewRequest("GET", "/todos/"+createdTodo.UID, nil)
 	w = httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusNotFound {
 		t.Errorf("Expected 404 after deletion, got %d", w.Code)
 	}
@@ -427,49 +427,49 @@ func TestTodoCompleteWorkflow(t *testing.T) {
 
 func TestBackgroundCompleteWorkflow(t *testing.T) {
 	suite := setupIntegrationTestSuite()
-	
+
 	// Test Create Background
 	bgJSON := `{"key":"test-theme","value":"dark-mode-config"}`
 	req := httptest.NewRequest("POST", "/backgrounds/", strings.NewReader(bgJSON))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("Create background failed: %d", w.Code)
 	}
-	
+
 	var createdBg postgres.Background
 	if err := json.NewDecoder(w.Body).Decode(&createdBg); err != nil {
 		t.Fatalf("Failed to decode created background: %v", err)
 	}
-	
+
 	// Test Get Background
 	req = httptest.NewRequest("GET", "/backgrounds/test-theme", nil)
 	w = httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("Get background failed: %d", w.Code)
 	}
-	
+
 	// Test List Backgrounds
 	req = httptest.NewRequest("GET", "/backgrounds/?sort_by=key&sort_dir=ASC", nil)
 	w = httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("List backgrounds failed: %d", w.Code)
 	}
-	
+
 	var backgrounds []postgres.Background
 	if err := json.NewDecoder(w.Body).Decode(&backgrounds); err != nil {
 		t.Fatalf("Failed to decode backgrounds list: %v", err)
 	}
-	
+
 	if len(backgrounds) != 1 {
 		t.Errorf("Expected 1 background, got %d", len(backgrounds))
 	}
@@ -477,70 +477,70 @@ func TestBackgroundCompleteWorkflow(t *testing.T) {
 
 func TestPreferencesCompleteWorkflow(t *testing.T) {
 	suite := setupIntegrationTestSuite()
-	
+
 	// Test Create Preferences
 	prefJSON := `{"key":"ui","specifier":"theme","data":"{\"mode\":\"dark\",\"accent\":\"blue\"}"}`
 	req := httptest.NewRequest("POST", "/preferences/", strings.NewReader(prefJSON))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("Create preferences failed: %d", w.Code)
 	}
-	
+
 	var createdPref postgres.Preferences
 	if err := json.NewDecoder(w.Body).Decode(&createdPref); err != nil {
 		t.Fatalf("Failed to decode created preferences: %v", err)
 	}
-	
+
 	// Test Get Preferences
 	req = httptest.NewRequest("GET", "/preferences/ui/theme", nil)
 	w = httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("Get preferences failed: %d", w.Code)
 	}
-	
+
 	var fetchedPref postgres.Preferences
 	if err := json.NewDecoder(w.Body).Decode(&fetchedPref); err != nil {
 		t.Fatalf("Failed to decode fetched preferences: %v", err)
 	}
-	
+
 	if fetchedPref.Key != "ui" || fetchedPref.Specifier != "theme" {
 		t.Errorf("Expected key 'ui' and specifier 'theme', got '%s' and '%s'", fetchedPref.Key, fetchedPref.Specifier)
 	}
-	
+
 	// Test Update Preferences
 	updateJSON := `{"key":"ui","specifier":"theme","data":"{\"mode\":\"light\",\"accent\":\"green\"}"}`
 	req = httptest.NewRequest("PUT", "/preferences/ui/theme", strings.NewReader(updateJSON))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("Update preferences failed: %d", w.Code)
 	}
-	
+
 	// Test List Preferences
 	req = httptest.NewRequest("GET", "/preferences/?limit=50", nil)
 	w = httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("List preferences failed: %d", w.Code)
 	}
-	
+
 	var preferences []postgres.Preferences
 	if err := json.NewDecoder(w.Body).Decode(&preferences); err != nil {
 		t.Fatalf("Failed to decode preferences list: %v", err)
 	}
-	
+
 	if len(preferences) != 1 {
 		t.Errorf("Expected 1 preference, got %d", len(preferences))
 	}
@@ -548,42 +548,42 @@ func TestPreferencesCompleteWorkflow(t *testing.T) {
 
 func TestListEndpointsWithFiltering(t *testing.T) {
 	suite := setupIntegrationTestSuite()
-	
+
 	// Create test data
 	todo1JSON := `{"title":"High Priority Task","description":"Important task","priority":3}`
 	todo2JSON := `{"title":"Low Priority Task","description":"Less important","priority":1}`
-	
+
 	// Create todos
 	for _, todoJSON := range []string{todo1JSON, todo2JSON} {
 		req := httptest.NewRequest("POST", "/todos/", strings.NewReader(todoJSON))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 		suite.router.ServeHTTP(w, req)
-		
+
 		if w.Code != http.StatusOK {
 			t.Fatalf("Failed to create test todo: %d", w.Code)
 		}
 	}
-	
+
 	// Test filtering by priority
 	req := httptest.NewRequest("GET", "/todos/?priority=3", nil)
 	w := httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Fatalf("List todos with filter failed: %d", w.Code)
 	}
-	
+
 	var filteredTodos []postgres.Todo
 	if err := json.NewDecoder(w.Body).Decode(&filteredTodos); err != nil {
 		t.Fatalf("Failed to decode filtered todos: %v", err)
 	}
-	
+
 	if len(filteredTodos) != 1 {
 		t.Errorf("Expected 1 filtered todo, got %d", len(filteredTodos))
 	}
-	
+
 	if len(filteredTodos) > 0 && filteredTodos[0].Priority != postgres.PriorityHigh {
 		t.Errorf("Expected high priority todo, got priority %d", filteredTodos[0].Priority)
 	}
@@ -591,25 +591,26 @@ func TestListEndpointsWithFiltering(t *testing.T) {
 
 func TestErrorHandling(t *testing.T) {
 	suite := setupIntegrationTestSuite()
-	
+
 	// Test 404 for non-existent todo
 	req := httptest.NewRequest("GET", "/todos/nonexistent-id", nil)
 	w := httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusNotFound {
 		t.Errorf("Expected 404 for non-existent todo, got %d", w.Code)
 	}
-	
+
 	// Test 400 for invalid JSON
 	req = httptest.NewRequest("POST", "/todos/", strings.NewReader("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
-	
+
 	suite.router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Expected 400 for invalid JSON, got %d", w.Code)
 	}
 }
+

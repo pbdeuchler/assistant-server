@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	dao "github.com/pbdeuchler/assistant-mcp/dao/postgres"
+	dao "github.com/pbdeuchler/assistant-server/dao/postgres"
 )
 
 type NotesHandlers struct{ dao assistant }
@@ -91,3 +91,4 @@ func (h *NotesHandlers) list(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(out)
 }
+

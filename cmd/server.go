@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pbdeuchler/assistant-mcp/dao/postgres"
-	"github.com/pbdeuchler/assistant-mcp/service"
+	"github.com/pbdeuchler/assistant-server/dao/postgres"
+	"github.com/pbdeuchler/assistant-server/service"
 )
 
 func Serve(ctx context.Context, cfg Config) error {

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/pbdeuchler/assistant-mcp/dao/postgres"
+	"github.com/pbdeuchler/assistant-server/dao/postgres"
 )
 
 // Mock DAO for testing

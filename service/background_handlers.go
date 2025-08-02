@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	dao "github.com/pbdeuchler/assistant-mcp/dao/postgres"
+	dao "github.com/pbdeuchler/assistant-server/dao/postgres"
 )
 
 type BackgroundHandlers struct{ dao assistant }
@@ -89,4 +89,3 @@ func (h *BackgroundHandlers) list(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(out)
 }
-

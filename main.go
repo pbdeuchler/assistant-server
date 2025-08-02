@@ -5,7 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/pbdeuchler/assistant-mcp/cmd"
+	"github.com/pbdeuchler/assistant-server/cmd"
 )
 
 func main() {

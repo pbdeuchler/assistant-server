@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
-	dao "github.com/pbdeuchler/assistant-mcp/dao/postgres"
+	dao "github.com/pbdeuchler/assistant-server/dao/postgres"
 )
 
 type assistant interface {
