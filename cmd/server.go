@@ -19,12 +19,28 @@ func Serve(ctx context.Context, cfg Config) error {
 	if err != nil {
 		return err
 	}
+
 	r := chi.NewRouter()
-	r.Mount("/todos", service.NewHandlers(db))
-	r.Mount("/backgrounds", service.NewBackgroundHandlers(db))
-	r.Mount("/preferences", service.NewPreferencesHandlers(db))
-	r.Mount("/notes", service.NewNotesHandlers(db))
-	srv := &http.Server{Addr: ":" + cfg.Port, Handler: r}
+
+	// Auth endpoints (unprotected)
+	authConfig := service.AuthConfig{
+		GCloudClientID:     cfg.GCloudClientID,
+		GCloudClientSecret: cfg.GCloudClientSecret,
+		GCloudProjectID:    cfg.GCloudProjectID,
+		BaseURL:            cfg.BaseURL,
+	}
+	r.Mount("/oauth", service.NewAuthHandlers(authConfig, db))
+
+	// API endpoints (can be protected with JWT middleware if needed)
+	// To protect routes, uncomment the following line:
+	// r.Use(service.JWTMiddleware([]byte(cfg.JWTSecret)))
+
+	r.Mount("/todos", service.NewTodos(db))
+	r.Mount("/preferences", service.NewPreferences(db))
+	r.Mount("/notes", service.NewNotes(db))
+	r.Mount("/bootstrap", service.NewBootstrap(db))
+
+	srv := &http.Server{Addr: "0.0.0.0:" + cfg.Port, Handler: r}
 	go func() { <-ctx.Done(); _ = srv.Shutdown(context.Background()) }()
 	return srv.ListenAndServe()
 }

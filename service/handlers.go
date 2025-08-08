@@ -3,41 +3,29 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	dao "github.com/pbdeuchler/assistant-server/dao/postgres"
 )
 
-type assistant interface {
+type todoDAO interface {
 	CreateTodo(ctx context.Context, t dao.Todo) (dao.Todo, error)
 	GetTodo(ctx context.Context, uid string) (dao.Todo, error)
 	ListTodos(ctx context.Context, options dao.ListOptions) ([]dao.Todo, error)
-	UpdateTodo(ctx context.Context, uid string, t dao.Todo) (dao.Todo, error)
+	UpdateTodo(ctx context.Context, uid string, t dao.UpdateTodo) (dao.Todo, error)
 	DeleteTodo(ctx context.Context, uid string) error
-	CreateBackground(ctx context.Context, b dao.Background) (dao.Background, error)
-	GetBackground(ctx context.Context, key string) (dao.Background, error)
-	ListBackgrounds(ctx context.Context, options dao.ListOptions) ([]dao.Background, error)
-	UpdateBackground(ctx context.Context, key string, b dao.Background) (dao.Background, error)
-	DeleteBackground(ctx context.Context, key string) error
-	CreatePreferences(ctx context.Context, p dao.Preferences) (dao.Preferences, error)
-	GetPreferences(ctx context.Context, key, specifier string) (dao.Preferences, error)
-	ListPreferences(ctx context.Context, options dao.ListOptions) ([]dao.Preferences, error)
-	UpdatePreferences(ctx context.Context, key, specifier string, p dao.Preferences) (dao.Preferences, error)
-	DeletePreferences(ctx context.Context, key, specifier string) error
-	CreateNotes(ctx context.Context, n dao.Notes) (dao.Notes, error)
-	GetNotes(ctx context.Context, id string) (dao.Notes, error)
-	ListNotes(ctx context.Context, options dao.ListOptions) ([]dao.Notes, error)
-	UpdateNotes(ctx context.Context, id string, n dao.Notes) (dao.Notes, error)
-	DeleteNotes(ctx context.Context, id string) error
 }
 
-type Handlers struct{ dao assistant }
+type todoHandlers struct{ dao todoDAO }
 
-func NewHandlers(dao assistant) http.Handler {
-	h := &Handlers{dao}
+func NewTodos(dao todoDAO) http.Handler {
+	h := &todoHandlers{dao}
 	r := chi.NewRouter()
+	r.Use(httpLogger())
 	r.Post("/", h.create)
 	r.Get("/{uid}", h.get)
 	r.Put("/{uid}", h.update)
@@ -46,22 +34,78 @@ func NewHandlers(dao assistant) http.Handler {
 	return r
 }
 
-func (h *Handlers) create(w http.ResponseWriter, r *http.Request) {
-	var t dao.Todo
-	if json.NewDecoder(r.Body).Decode(&t) != nil {
+type createTodoRequest struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Data        string `json:"data"`
+	Priority    int    `json:"priority"`
+	DueDate     string `json:"due_date"`
+	RecursOn    string `json:"recurs_on"`
+	ExternalURL string `json:"external_url"`
+	UserID      string `json:"user_id"`
+	HouseholdID string `json:"household_id"`
+}
+
+func (h *todoHandlers) create(w http.ResponseWriter, r *http.Request) {
+	var todoReq createTodoRequest
+	if json.NewDecoder(r.Body).Decode(&todoReq) != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	t.UID = uuid.NewString()
+	var dueDate *time.Time
+	if todoReq.DueDate != "" {
+		parsedDate, err := time.Parse(time.RFC3339, todoReq.DueDate)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid due date: " + err.Error()})
+			return
+		} else {
+			dueDate = &parsedDate
+		}
+	} else {
+		dueDate = nil
+	}
+	if todoReq.Priority < 1 || todoReq.Priority > 5 {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "priority must be between 1 and 5"})
+		return
+	}
+
+	if todoReq.Data == "" {
+		todoReq.Data = "{}" // Default to empty JSON object if no data is provided
+	} else {
+		// Validate that Data is a valid JSON string
+		var js map[string]any
+		if err := json.Unmarshal([]byte(todoReq.Data), &js); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid json submitted for data: " + err.Error()})
+			return
+		}
+	}
+
+	priority := dao.Priority(todoReq.Priority)
+	t := dao.Todo{
+		Title:       todoReq.Title,
+		Description: todoReq.Description,
+		Data:        todoReq.Data,
+		Priority:    priority,
+		DueDate:     dueDate,
+		RecursOn:    todoReq.RecursOn,
+		ExternalURL: todoReq.ExternalURL,
+		UserID:      todoReq.UserID,
+		HouseholdID: todoReq.HouseholdID,
+		UID:         uuid.NewString(),
+	}
 	out, err := h.dao.CreateTodo(r.Context(), t)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		slog.Error("failed to create todo", "error", err)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-func (h *Handlers) get(w http.ResponseWriter, r *http.Request) {
+func (h *todoHandlers) get(w http.ResponseWriter, r *http.Request) {
 	out, err := h.dao.GetTodo(r.Context(), chi.URLParam(r, "uid"))
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
@@ -70,8 +114,8 @@ func (h *Handlers) get(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-func (h *Handlers) update(w http.ResponseWriter, r *http.Request) {
-	var t dao.Todo
+func (h *todoHandlers) update(w http.ResponseWriter, r *http.Request) {
+	var t dao.UpdateTodo
 	if json.NewDecoder(r.Body).Decode(&t) != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -84,7 +128,7 @@ func (h *Handlers) update(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(out)
 }
 
-func (h *Handlers) delete(w http.ResponseWriter, r *http.Request) {
+func (h *todoHandlers) delete(w http.ResponseWriter, r *http.Request) {
 	if h.dao.DeleteTodo(r.Context(), chi.URLParam(r, "uid")) != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -92,9 +136,9 @@ func (h *Handlers) delete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handlers) list(w http.ResponseWriter, r *http.Request) {
-	allowedSortFields := []string{"uid", "title", "priority", "due_date", "created_at", "updated_at", "created_by", "completed_by"}
-	allowedFilters := []string{"title", "priority", "created_by", "completed_by"}
+func (h *todoHandlers) list(w http.ResponseWriter, r *http.Request) {
+	allowedSortFields := []string{"uid", "title", "priority", "due_date", "created_at", "updated_at", "user_id", "household_id", "completed_by"}
+	allowedFilters := []string{"title", "priority", "user_id", "household_id", "completed_by"}
 
 	params := ParseListParams(r, allowedSortFields)
 	whereClause, whereArgs := BuildWhereClause(params.Filters, allowedFilters)

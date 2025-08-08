@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -28,7 +29,8 @@ type Todo struct {
 	RecursOn       string     `json:"recurs_on" db:"recurs_on"`
 	MarkedComplete *time.Time `json:"marked_complete" db:"marked_complete"`
 	ExternalURL    string     `json:"external_url" db:"external_url"`
-	CreatedBy      string     `json:"created_by" db:"created_by"`
+	UserID         string     `json:"user_id" db:"user_id"`
+	HouseholdID    string     `json:"household_id" db:"household_id"`
 	CompletedBy    string     `json:"completed_by" db:"completed_by"`
 	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
@@ -50,12 +52,46 @@ type Preferences struct {
 }
 
 type Notes struct {
-	ID           string    `json:"id" db:"id"`
-	Title        string    `json:"title" db:"title"`
-	RelevantUser string    `json:"relevant_user" db:"relevant_user"`
-	Content      string    `json:"content" db:"content"`
-	CreatedAt    time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
+	ID          string    `json:"id" db:"id"`
+	Title       string    `json:"title" db:"title"`
+	UserID      string    `json:"user_id" db:"user_id"`
+	HouseholdID string    `json:"household_id" db:"household_id"`
+	Content     string    `json:"content" db:"content"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+}
+
+type Credentials struct {
+	ID             string          `json:"id" db:"id"`
+	UserID         string          `json:"user_id" db:"user_id"`
+	CredentialType string          `json:"credential_type" db:"credential_type"`
+	Value          json.RawMessage `json:"value" db:"value"`
+	CreatedAt      time.Time       `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at" db:"updated_at"`
+}
+
+type SlackUsers struct {
+	SlackUserID string    `json:"slack_user_id" db:"slack_user_id"`
+	UserID      string    `json:"user_id" db:"user_id"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+}
+
+type Users struct {
+	UID         string    `json:"uid" db:"uid"`
+	Name        string    `json:"name" db:"name"`
+	Email       string    `json:"email" db:"email"`
+	Description string    `json:"description" db:"description"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+}
+
+type Households struct {
+	UID         string    `json:"uid" db:"uid"`
+	Name        string    `json:"name" db:"name"`
+	Description string    `json:"description" db:"description"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
 
 type ListOptions struct {
@@ -82,7 +118,7 @@ func New(ctx context.Context, pool queryer) (*DAO, error) {
 func (d *DAO) CreateTodo(ctx context.Context, t Todo) (Todo, error) {
 	row := d.pool.QueryRow(ctx, insertTodo,
 		t.UID, t.Title, t.Description, t.Data, t.Priority, t.DueDate,
-		t.RecursOn, t.MarkedComplete, t.ExternalURL, t.CreatedBy, t.CompletedBy,
+		t.RecursOn, t.MarkedComplete, t.ExternalURL, t.UserID, t.HouseholdID, t.CompletedBy,
 	)
 	return scanTodo(row)
 }
@@ -110,7 +146,19 @@ func (d *DAO) ListTodos(ctx context.Context, options ListOptions) ([]Todo, error
 	return out, rows.Err()
 }
 
-func (d *DAO) UpdateTodo(ctx context.Context, uid string, t Todo) (Todo, error) {
+type UpdateTodo struct {
+	Title          *string `json:"title"`
+	Description    *string `json:"description"`
+	Data           *string `json:"data"`
+	Priority       *int    `json:"priority"`
+	DueDate        *string `json:"due_date"`
+	RecursOn       *string `json:"recurs_on"`
+	ExternalURL    *string `json:"external_url"`
+	CompletedBy    *string `json:"completed_by"`
+	MarkedComplete *string `json:"marked_complete"`
+}
+
+func (d *DAO) UpdateTodo(ctx context.Context, uid string, t UpdateTodo) (Todo, error) {
 	row := d.pool.QueryRow(ctx, updateTodo, uid, t.Title, t.Description, t.Data,
 		t.Priority, t.DueDate, t.RecursOn, t.MarkedComplete, t.ExternalURL, t.CompletedBy,
 	)
@@ -199,7 +247,7 @@ func (d *DAO) DeletePreferences(ctx context.Context, key, specifier string) erro
 }
 
 func (d *DAO) CreateNotes(ctx context.Context, n Notes) (Notes, error) {
-	row := d.pool.QueryRow(ctx, insertNotes, n.ID, n.Title, n.RelevantUser, n.Content)
+	row := d.pool.QueryRow(ctx, insertNotes, n.ID, n.Title, n.UserID, n.HouseholdID, n.Content)
 	return scanNotes(row)
 }
 
@@ -227,13 +275,139 @@ func (d *DAO) ListNotes(ctx context.Context, options ListOptions) ([]Notes, erro
 }
 
 func (d *DAO) UpdateNotes(ctx context.Context, id string, n Notes) (Notes, error) {
-	row := d.pool.QueryRow(ctx, updateNotes, id, n.Title, n.RelevantUser, n.Content)
+	row := d.pool.QueryRow(ctx, updateNotes, id, n.Title, n.UserID, n.HouseholdID, n.Content)
 	return scanNotes(row)
 }
 
 func (d *DAO) DeleteNotes(ctx context.Context, id string) error {
 	_, err := d.pool.Exec(ctx, deleteNotes, id)
 	return err
+}
+
+func (d *DAO) CreateCredentials(ctx context.Context, c Credentials) (Credentials, error) {
+	row := d.pool.QueryRow(ctx, insertCredentials, c.ID, c.UserID, c.CredentialType, c.Value)
+	return scanCredentials(row)
+}
+
+func (d *DAO) GetCredentials(ctx context.Context, id string) (Credentials, error) {
+	return scanCredentials(d.pool.QueryRow(ctx, getCredentials, id))
+}
+
+func (d *DAO) GetCredentialsByUserAndType(ctx context.Context, userID, credentialType string) (Credentials, error) {
+	return scanCredentials(d.pool.QueryRow(ctx, getCredentialsByUserAndType, userID, credentialType))
+}
+
+func (d *DAO) ListCredentials(ctx context.Context, options ListOptions) ([]Credentials, error) {
+	query := buildListQuery("credentials", options)
+	args := append(options.WhereArgs, options.Limit, options.Offset)
+	rows, err := d.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Credentials
+	for rows.Next() {
+		c, err := scanCredentials(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func (d *DAO) UpdateCredentials(ctx context.Context, id string, c Credentials) (Credentials, error) {
+	row := d.pool.QueryRow(ctx, updateCredentials, id, c.UserID, c.CredentialType, c.Value)
+	return scanCredentials(row)
+}
+
+func (d *DAO) DeleteCredentials(ctx context.Context, id string) error {
+	_, err := d.pool.Exec(ctx, deleteCredentials, id)
+	return err
+}
+
+func (d *DAO) GetSlackUser(ctx context.Context, slackUserID string) (SlackUsers, error) {
+	return scanSlackUser(d.pool.QueryRow(ctx, getSlackUser, slackUserID))
+}
+
+func (d *DAO) GetUserBySlackUserID(ctx context.Context, slackUserID string) (Users, error) {
+	return scanUser(d.pool.QueryRow(ctx, getUserBySlackUserID, slackUserID))
+}
+
+func (d *DAO) GetCredentialsByUserID(ctx context.Context, userID string) ([]Credentials, error) {
+	rows, err := d.pool.Query(ctx, getCredentialsByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Credentials
+	for rows.Next() {
+		c, err := scanCredentials(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func (d *DAO) GetUser(ctx context.Context, uid string) (Users, error) {
+	return scanUser(d.pool.QueryRow(ctx, getUser, uid))
+}
+
+func (d *DAO) GetHousehold(ctx context.Context, uid string) (Households, error) {
+	return scanHousehold(d.pool.QueryRow(ctx, getHousehold, uid))
+}
+
+func (d *DAO) GetTodosByUserID(ctx context.Context, userID string) ([]Todo, error) {
+	rows, err := d.pool.Query(ctx, getTodosByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Todo
+	for rows.Next() {
+		t, err := scanTodo(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+func (d *DAO) GetNotesByUserID(ctx context.Context, userID string) ([]Notes, error) {
+	rows, err := d.pool.Query(ctx, getNotesByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Notes
+	for rows.Next() {
+		n, err := scanNotes(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+func (d *DAO) GetPreferencesByUserID(ctx context.Context, userID string) ([]Preferences, error) {
+	rows, err := d.pool.Query(ctx, getPreferencesByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Preferences
+	for rows.Next() {
+		p, err := scanPreferences(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
 }
 
 type scannable interface {
@@ -244,7 +418,7 @@ func scanTodo(s scannable) (Todo, error) {
 	var t Todo
 	err := s.Scan(&t.UID, &t.Title, &t.Description, &t.Data, &t.Priority,
 		&t.DueDate, &t.RecursOn, &t.MarkedComplete, &t.ExternalURL,
-		&t.CreatedBy, &t.CompletedBy, &t.CreatedAt, &t.UpdatedAt)
+		&t.UserID, &t.HouseholdID, &t.CompletedBy, &t.CreatedAt, &t.UpdatedAt)
 	return t, err
 }
 
@@ -262,8 +436,32 @@ func scanPreferences(s scannable) (Preferences, error) {
 
 func scanNotes(s scannable) (Notes, error) {
 	var n Notes
-	err := s.Scan(&n.ID, &n.Title, &n.RelevantUser, &n.Content, &n.CreatedAt, &n.UpdatedAt)
+	err := s.Scan(&n.ID, &n.Title, &n.UserID, &n.HouseholdID, &n.Content, &n.CreatedAt, &n.UpdatedAt)
 	return n, err
+}
+
+func scanCredentials(s scannable) (Credentials, error) {
+	var c Credentials
+	err := s.Scan(&c.ID, &c.UserID, &c.CredentialType, &c.Value, &c.CreatedAt, &c.UpdatedAt)
+	return c, err
+}
+
+func scanSlackUser(s scannable) (SlackUsers, error) {
+	var su SlackUsers
+	err := s.Scan(&su.SlackUserID, &su.UserID, &su.CreatedAt, &su.UpdatedAt)
+	return su, err
+}
+
+func scanUser(s scannable) (Users, error) {
+	var u Users
+	err := s.Scan(&u.UID, &u.Name, &u.Email, &u.Description, &u.CreatedAt, &u.UpdatedAt)
+	return u, err
+}
+
+func scanHousehold(s scannable) (Households, error) {
+	var h Households
+	err := s.Scan(&h.UID, &h.Name, &h.Description, &h.CreatedAt, &h.UpdatedAt)
+	return h, err
 }
 
 func buildListQuery(tableName string, options ListOptions) string {

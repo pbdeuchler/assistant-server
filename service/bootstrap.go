@@ -1,0 +1,224 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	dao "github.com/pbdeuchler/assistant-server/dao/postgres"
+	"golang.org/x/oauth2"
+)
+
+type bootstrapDAO interface {
+	GetUserBySlackUserID(ctx context.Context, slackUserID string) (dao.Users, error)
+	GetCredentialsByUserID(ctx context.Context, userID string) ([]dao.Credentials, error)
+	GetTodosByUserID(ctx context.Context, userID string) ([]dao.Todo, error)
+	GetNotesByUserID(ctx context.Context, userID string) ([]dao.Notes, error)
+	GetPreferencesByUserID(ctx context.Context, userID string) ([]dao.Preferences, error)
+	UpdateCredentials(ctx context.Context, id string, c dao.Credentials) (dao.Credentials, error)
+}
+
+type bootstrapHandlers struct{ dao bootstrapDAO }
+
+func NewBootstrap(dao bootstrapDAO) http.Handler {
+	h := &bootstrapHandlers{dao}
+	r := chi.NewRouter()
+	r.Use(httpLogger())
+	r.Get("/", h.bootstrap)
+	return r
+}
+
+type BootstrapResponse struct {
+	User                 dao.Users         `json:"user"`
+	Household            *dao.Households   `json:"household,omitempty"`
+	Todos                []dao.Todo        `json:"todos"`
+	Notes                []dao.Notes       `json:"notes"`
+	Preferences          []dao.Preferences `json:"preferences"`
+	LLMPrompt            string            `json:"llm_prompt"`
+	ValidatedCredentials []dao.Credentials `json:"validated_credentials"`
+}
+
+func (h *bootstrapHandlers) bootstrap(w http.ResponseWriter, r *http.Request) {
+	slackID := r.URL.Query().Get("slack_id")
+	if slackID == "" {
+		http.Error(w, "slack_id query parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	ctx := r.Context()
+
+	// Look up the user by slack ID
+	user, err := h.dao.GetUserBySlackUserID(ctx, slackID)
+	if err != nil {
+		http.Error(w, "User not found for slack ID: "+err.Error(), http.StatusNotFound)
+		return
+	}
+
+	// Get user credentials
+	credentials, err := h.dao.GetCredentialsByUserID(ctx, user.UID)
+	if err != nil {
+		slog.Error("Failed to get credentials", "user_id", user.UID, "error", err)
+		credentials = []dao.Credentials{} // Continue with empty credentials
+	}
+
+	// Validate and refresh credentials
+	validatedCredentials := make([]dao.Credentials, 0)
+	for _, cred := range credentials {
+		if validated, updated := h.validateAndRefreshCredential(ctx, cred); validated {
+			validatedCredentials = append(validatedCredentials, updated)
+		}
+	}
+
+	// Get todos
+	todos, err := h.dao.GetTodosByUserID(ctx, user.UID)
+	if err != nil {
+		slog.Error("Failed to get todos", "user_id", user.UID, "error", err)
+		todos = []dao.Todo{}
+	}
+
+	// Get notes
+	notes, err := h.dao.GetNotesByUserID(ctx, user.UID)
+	if err != nil {
+		slog.Error("Failed to get notes", "user_id", user.UID, "error", err)
+		notes = []dao.Notes{}
+	}
+
+	// Get preferences
+	preferences, err := h.dao.GetPreferencesByUserID(ctx, user.UID)
+	if err != nil {
+		slog.Error("Failed to get preferences", "user_id", user.UID, "error", err)
+		preferences = []dao.Preferences{}
+	}
+
+	// Try to get household (may not exist)
+	var household *dao.Households
+	// Note: We need to add household relationship logic later
+	// For now, leave household as nil
+
+	// Compile structured prompt for LLM
+	prompt := h.compileLLMPrompt(user, household, todos, notes, preferences)
+
+	response := BootstrapResponse{
+		User: user,
+		// Household:           household,
+		// Todos:               todos,
+		// Notes:               notes,
+		// Preferences:         preferences,
+		LLMPrompt:            prompt,
+		ValidatedCredentials: validatedCredentials,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+func (h *bootstrapHandlers) validateAndRefreshCredential(ctx context.Context, cred dao.Credentials) (bool, dao.Credentials) {
+	if cred.CredentialType != "GOOGLE_CALENDAR" {
+		// For now, only handle Google Calendar credentials
+		return true, cred
+	}
+
+	// Parse the OAuth token from JSON
+	var token oauth2.Token
+	if err := json.Unmarshal(cred.Value, &token); err != nil {
+		slog.Error("Failed to unmarshal OAuth token", "credential_id", cred.ID, "error", err)
+		return false, cred
+	}
+
+	// Check if token is expired and has refresh token
+	if token.Expiry.Before(time.Now()) && token.RefreshToken != "" {
+		slog.Info("Token expired, attempting refresh", "credential_id", cred.ID)
+
+		// Create OAuth2 config for token refresh
+		oauth2Config := &oauth2.Config{
+			// We need these from environment or config - for now use placeholders
+			ClientID:     "placeholder", // TODO: Get from config
+			ClientSecret: "placeholder", // TODO: Get from config
+		}
+
+		// Attempt to refresh the token
+		newToken, err := oauth2Config.TokenSource(ctx, &token).Token()
+		if err != nil {
+			slog.Error("Failed to refresh token", "credential_id", cred.ID, "error", err)
+			return false, cred
+		}
+
+		// Update the credential with the new token
+		newTokenJSON, err := json.Marshal(newToken)
+		if err != nil {
+			slog.Error("Failed to marshal refreshed token", "credential_id", cred.ID, "error", err)
+			return false, cred
+		}
+
+		cred.Value = newTokenJSON
+		updatedCred, err := h.dao.UpdateCredentials(ctx, cred.ID, cred)
+		if err != nil {
+			slog.Error("Failed to update credential", "credential_id", cred.ID, "error", err)
+			return false, cred
+		}
+
+		slog.Info("Successfully refreshed and updated token", "credential_id", cred.ID)
+		return true, updatedCred
+	}
+
+	// Token is still valid
+	return true, cred
+}
+
+func (h *bootstrapHandlers) compileLLMPrompt(user dao.Users, household *dao.Households, todos []dao.Todo, notes []dao.Notes, preferences []dao.Preferences) string {
+	var prompt strings.Builder
+
+	prompt.WriteString("# User Context\n\n")
+	prompt.WriteString(fmt.Sprintf("**User:** %s (%s)\n", user.Name, user.Email))
+	if user.Description != "" {
+		prompt.WriteString(fmt.Sprintf("**Description:** %s\n", user.Description))
+	}
+	prompt.WriteString("\n")
+
+	if household != nil {
+		prompt.WriteString("# Household Context\n\n")
+		prompt.WriteString(fmt.Sprintf("**Household:** %s\n", household.Name))
+		if household.Description != "" {
+			prompt.WriteString(fmt.Sprintf("**Description:** %s\n", household.Description))
+		}
+		prompt.WriteString("\n")
+	}
+
+	if len(todos) > 0 {
+		prompt.WriteString("# Todos\n\n")
+		for _, todo := range todos {
+			prompt.WriteString(fmt.Sprintf("- **%s**", todo.Title))
+			if todo.Description != "" {
+				prompt.WriteString(fmt.Sprintf(" - %s", todo.Description))
+			}
+			if todo.DueDate != nil {
+				prompt.WriteString(fmt.Sprintf(" (Due: %s)", todo.DueDate.Format("2006-01-02")))
+			}
+			prompt.WriteString("\n")
+		}
+		prompt.WriteString("\n")
+	}
+
+	if len(notes) > 0 {
+		prompt.WriteString("# Notes\n\n")
+		for _, note := range notes {
+			prompt.WriteString(fmt.Sprintf("- **%s**: %s\n", note.Title, note.Content))
+		}
+		prompt.WriteString("\n")
+	}
+
+	if len(preferences) > 0 {
+		prompt.WriteString("# Preferences\n\n")
+		for _, pref := range preferences {
+			prompt.WriteString(fmt.Sprintf("- **%s** (%s): %s\n", pref.Key, pref.Specifier, pref.Data))
+		}
+		prompt.WriteString("\n")
+	}
+
+	return prompt.String()
+}

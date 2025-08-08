@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -9,9 +10,17 @@ import (
 	dao "github.com/pbdeuchler/assistant-server/dao/postgres"
 )
 
-type NotesHandlers struct{ dao assistant }
+type notesDAO interface {
+	CreateNotes(ctx context.Context, n dao.Notes) (dao.Notes, error)
+	GetNotes(ctx context.Context, id string) (dao.Notes, error)
+	ListNotes(ctx context.Context, options dao.ListOptions) ([]dao.Notes, error)
+	UpdateNotes(ctx context.Context, id string, n dao.Notes) (dao.Notes, error)
+	DeleteNotes(ctx context.Context, id string) error
+}
 
-func NewNotesHandlers(dao assistant) http.Handler {
+type NotesHandlers struct{ dao notesDAO }
+
+func NewNotes(dao notesDAO) http.Handler {
 	h := &NotesHandlers{dao}
 	r := chi.NewRouter()
 	r.Post("/", h.create)
@@ -69,8 +78,8 @@ func (h *NotesHandlers) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *NotesHandlers) list(w http.ResponseWriter, r *http.Request) {
-	allowedSortFields := []string{"id", "title", "relevant_user", "created_at", "updated_at"}
-	allowedFilters := []string{"title", "relevant_user"}
+	allowedSortFields := []string{"id", "title", "user_id", "household_id", "created_at", "updated_at"}
+	allowedFilters := []string{"title", "user_id", "household_id"}
 
 	params := ParseListParams(r, allowedSortFields)
 	whereClause, whereArgs := BuildWhereClause(params.Filters, allowedFilters)
@@ -91,4 +100,3 @@ func (h *NotesHandlers) list(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(out)
 }
-

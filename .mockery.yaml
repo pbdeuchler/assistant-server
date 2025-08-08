@@ -1,0 +1,12 @@
+pkgname: mocks
+dir: mocks
+filename: "{{.InterfaceName}}.go"
+structname: "Mock{{.InterfaceName}}"
+packages:
+  github.com/pbdeuchler/assistant-server/service:
+    interfaces:
+      todoDAO:
+      notesDAO:
+      preferencesDAO:
+      authDAO:
+      bootstrapDAO:

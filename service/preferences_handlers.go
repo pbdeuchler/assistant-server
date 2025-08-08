@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 
@@ -8,9 +9,17 @@ import (
 	dao "github.com/pbdeuchler/assistant-server/dao/postgres"
 )
 
-type PreferencesHandlers struct{ dao assistant }
+type preferencesDAO interface {
+	CreatePreferences(ctx context.Context, p dao.Preferences) (dao.Preferences, error)
+	GetPreferences(ctx context.Context, key, specifier string) (dao.Preferences, error)
+	ListPreferences(ctx context.Context, options dao.ListOptions) ([]dao.Preferences, error)
+	UpdatePreferences(ctx context.Context, key, specifier string, p dao.Preferences) (dao.Preferences, error)
+	DeletePreferences(ctx context.Context, key, specifier string) error
+}
 
-func NewPreferencesHandlers(dao assistant) http.Handler {
+type PreferencesHandlers struct{ dao preferencesDAO }
+
+func NewPreferences(dao preferencesDAO) http.Handler {
 	h := &PreferencesHandlers{dao}
 	r := chi.NewRouter()
 	r.Post("/", h.create)

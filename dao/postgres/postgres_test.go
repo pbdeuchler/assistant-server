@@ -76,14 +76,21 @@ func TestCreateTodo(t *testing.T) {
 				return &mockRow{
 					scanFunc: func(dest ...any) error {
 						// Simulate scanning a complete Todo
-						if len(dest) >= 13 {
-							*dest[0].(*string) = "test-uid"
-							*dest[1].(*string) = "Test Title"
-							*dest[2].(*string) = "Test Description"
-							*dest[3].(*string) = "{}"
-							*dest[4].(*Priority) = PriorityHigh
-							*dest[11].(*time.Time) = now
-							*dest[12].(*time.Time) = now
+						if len(dest) >= 14 {
+							*dest[0].(*string) = "test-uid"         // UID
+							*dest[1].(*string) = "Test Title"       // Title  
+							*dest[2].(*string) = "Test Description" // Description
+							*dest[3].(*string) = "{}"               // Data
+							*dest[4].(*Priority) = PriorityHigh     // Priority
+							// dest[5] is DueDate (*time.Time) - leave nil
+							*dest[6].(*string) = ""                 // RecursOn
+							// dest[7] is MarkedComplete (*time.Time) - leave nil
+							*dest[8].(*string) = ""                 // ExternalURL
+							*dest[9].(*string) = "user-123"        // UserID
+							*dest[10].(*string) = "household-456"  // HouseholdID
+							*dest[11].(*string) = ""               // CompletedBy
+							*dest[12].(*time.Time) = now           // CreatedAt
+							*dest[13].(*time.Time) = now           // UpdatedAt
 						}
 						return nil
 					},
@@ -356,12 +363,13 @@ func TestCreateNotes(t *testing.T) {
 			if sql == insertNotes {
 				return &mockRow{
 					scanFunc: func(dest ...any) error {
-						*dest[0].(*string) = "test-id"
-						*dest[1].(*string) = "Test Note"
-						*dest[2].(*string) = "user123"
-						*dest[3].(*string) = "This is the content of the note"
-						*dest[4].(*time.Time) = now
-						*dest[5].(*time.Time) = now
+						*dest[0].(*string) = "test-id"                      // ID
+						*dest[1].(*string) = "Test Note"                    // Title
+						*dest[2].(*string) = "user123"                      // UserID
+						*dest[3].(*string) = "household456"                 // HouseholdID
+						*dest[4].(*string) = "This is the content of the note" // Content
+						*dest[5].(*time.Time) = now                         // CreatedAt
+						*dest[6].(*time.Time) = now                         // UpdatedAt
 						return nil
 					},
 				}
@@ -373,10 +381,11 @@ func TestCreateNotes(t *testing.T) {
 	dao, _ := New(context.Background(), mockPool)
 	
 	note := Notes{
-		ID:           "test-id",
-		Title:        "Test Note",
-		RelevantUser: "user123",
-		Content:      "This is the content of the note",
+		ID:          "test-id",
+		Title:       "Test Note",
+		UserID:      "user123",
+		HouseholdID: "household456",
+		Content:     "This is the content of the note",
 	}
 	
 	result, err := dao.CreateNotes(context.Background(), note)
@@ -390,8 +399,11 @@ func TestCreateNotes(t *testing.T) {
 	if result.Title != "Test Note" {
 		t.Errorf("Expected title 'Test Note', got '%s'", result.Title)
 	}
-	if result.RelevantUser != "user123" {
-		t.Errorf("Expected relevant_user 'user123', got '%s'", result.RelevantUser)
+	if result.UserID != "user123" {
+		t.Errorf("Expected user_id 'user123', got '%s'", result.UserID)
+	}
+	if result.HouseholdID != "household456" {
+		t.Errorf("Expected household_id 'household456', got '%s'", result.HouseholdID)
 	}
 }
 
@@ -402,12 +414,13 @@ func TestGetNotes(t *testing.T) {
 			if sql == getNotes && len(args) == 1 && args[0] == "test-id" {
 				return &mockRow{
 					scanFunc: func(dest ...any) error {
-						*dest[0].(*string) = "test-id"
-						*dest[1].(*string) = "Test Note"
-						*dest[2].(*string) = "user123"
-						*dest[3].(*string) = "This is the content"
-						*dest[4].(*time.Time) = now
-						*dest[5].(*time.Time) = now
+						*dest[0].(*string) = "test-id"           // ID
+						*dest[1].(*string) = "Test Note"         // Title
+						*dest[2].(*string) = "user123"           // UserID
+						*dest[3].(*string) = "household456"      // HouseholdID
+						*dest[4].(*string) = "This is the content" // Content
+						*dest[5].(*time.Time) = now              // CreatedAt
+						*dest[6].(*time.Time) = now              // UpdatedAt
 						return nil
 					},
 				}
