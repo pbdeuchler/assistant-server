@@ -34,13 +34,13 @@ func NewBootstrap(dao bootstrapDAO) http.Handler {
 }
 
 type BootstrapResponse struct {
-	User                 dao.Users         `json:"user"`
-	Household            *dao.Households   `json:"household,omitempty"`
-	Todos                []dao.Todo        `json:"todos"`
-	Notes                []dao.Notes       `json:"notes"`
-	Preferences          []dao.Preferences `json:"preferences"`
-	LLMPrompt            string            `json:"llm_prompt"`
-	ValidatedCredentials []dao.Credentials `json:"validated_credentials"`
+	User        dao.Users         `json:"user"`
+	Household   *dao.Households   `json:"household,omitempty"`
+	Todos       []dao.Todo        `json:"todos"`
+	Notes       []dao.Notes       `json:"notes"`
+	Preferences []dao.Preferences `json:"preferences"`
+	Prompt      string            `json:"prompt"`
+	Credentials []dao.Credentials `json:"credentials"`
 }
 
 func (h *bootstrapHandlers) bootstrap(w http.ResponseWriter, r *http.Request) {
@@ -109,8 +109,8 @@ func (h *bootstrapHandlers) bootstrap(w http.ResponseWriter, r *http.Request) {
 		// Todos:               todos,
 		// Notes:               notes,
 		// Preferences:         preferences,
-		LLMPrompt:            prompt,
-		ValidatedCredentials: validatedCredentials,
+		Prompt:      prompt,
+		Credentials: validatedCredentials,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
