@@ -38,7 +38,9 @@ func Serve(ctx context.Context, cfg Config) error {
 	r.Mount("/todos", service.NewTodos(db))
 	r.Mount("/preferences", service.NewPreferences(db))
 	r.Mount("/notes", service.NewNotes(db))
+	r.Mount("/recipes", service.NewRecipes(db))
 	r.Mount("/bootstrap", service.NewBootstrap(db))
+	r.Mount("/mcp", service.NewMCPRouter(db, db, db, db))
 
 	srv := &http.Server{Addr: "0.0.0.0:" + cfg.Port, Handler: r}
 	go func() { <-ctx.Done(); _ = srv.Shutdown(context.Background()) }()

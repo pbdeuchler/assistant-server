@@ -257,3 +257,109 @@ func TestTodoDelete(t *testing.T) {
 		t.Errorf("Expected status 204, got %d", rr.Code)
 	}
 }
+
+func TestTodoUpdateInvalidJSON(t *testing.T) {
+	mockTodoDAO := mocks.NewMocktodoDAO(t)
+	handler := NewTodos(mockTodoDAO)
+
+	req := httptest.NewRequest("PUT", "/test-uid", strings.NewReader("{invalid json"))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("uid", "test-uid")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", rr.Code)
+	}
+}
+
+func TestTodoUpdateError(t *testing.T) {
+	mockTodoDAO := mocks.NewMocktodoDAO(t)
+	
+	mockTodoDAO.On("UpdateTodo", mock.Anything, "test-uid", mock.AnythingOfType("postgres.UpdateTodo")).Return(postgres.Todo{}, errors.New("database error"))
+
+	handler := NewTodos(mockTodoDAO)
+
+	reqBody := `{
+		"title": "Updated Todo",
+		"description": "Updated Description"
+	}`
+
+	req := httptest.NewRequest("PUT", "/test-uid", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("uid", "test-uid")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status 500, got %d", rr.Code)
+	}
+}
+
+func TestTodoDeleteError(t *testing.T) {
+	mockTodoDAO := mocks.NewMocktodoDAO(t)
+	
+	mockTodoDAO.On("DeleteTodo", mock.Anything, "test-uid").Return(errors.New("database error"))
+
+	handler := NewTodos(mockTodoDAO)
+	
+	req := httptest.NewRequest("DELETE", "/test-uid", nil)
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("uid", "test-uid")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status 500, got %d", rr.Code)
+	}
+}
+
+func TestTodoCreateError(t *testing.T) {
+	mockTodoDAO := mocks.NewMocktodoDAO(t)
+	
+	mockTodoDAO.On("CreateTodo", mock.Anything, mock.AnythingOfType("postgres.Todo")).Return(postgres.Todo{}, errors.New("database error"))
+
+	handler := NewTodos(mockTodoDAO)
+
+	reqBody := `{
+		"title": "Test Todo",
+		"description": "Test Description",
+		"priority": 2,
+		"user_id": "user-123",
+		"household_id": "household-456"
+	}`
+
+	req := httptest.NewRequest("POST", "/", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status 500, got %d", rr.Code)
+	}
+}
+
+func TestTodoListError(t *testing.T) {
+	mockTodoDAO := mocks.NewMocktodoDAO(t)
+	
+	mockTodoDAO.On("ListTodos", mock.Anything, mock.AnythingOfType("postgres.ListOptions")).Return([]postgres.Todo{}, errors.New("database error"))
+
+	handler := NewTodos(mockTodoDAO)
+	
+	req := httptest.NewRequest("GET", "/", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status 500, got %d", rr.Code)
+	}
+}

@@ -78,6 +78,15 @@ func BuildWhereClause(filters map[string]string, allowedFilters []string) (strin
 	argIndex := 1
 
 	for key, value := range filters {
+		// Handle tag filtering specially
+		if key == "tags" {
+			conditions = append(conditions, fmt.Sprintf("tags @> $%d", argIndex))
+			args = append(args, []string{value})
+			argIndex++
+			continue
+		}
+
+		// Handle regular filters
 		for _, allowed := range allowedFilters {
 			if key == allowed {
 				conditions = append(conditions, fmt.Sprintf("%s = $%d", key, argIndex))
@@ -94,3 +103,61 @@ func BuildWhereClause(filters map[string]string, allowedFilters []string) (strin
 
 	return "WHERE " + strings.Join(conditions, " AND "), args
 }
+
+// BuildFiltersFromMCP creates a filter map from MCP tool arguments
+func BuildFiltersFromMCP(arguments map[string]any, supportedFilters []string) map[string]string {
+	filters := make(map[string]string)
+	
+	for _, filterName := range supportedFilters {
+		if value, ok := arguments[filterName]; ok {
+			switch v := value.(type) {
+			case string:
+				if v != "" {
+					filters[filterName] = v
+				}
+			case float64:
+				filters[filterName] = strconv.FormatFloat(v, 'f', -1, 64)
+			case int:
+				filters[filterName] = strconv.Itoa(v)
+			}
+		}
+	}
+	
+	// Handle special boolean filters
+	if completedOnly, ok := arguments["completed_only"].(bool); ok && completedOnly {
+		filters["completed_by"] = "NOT NULL"
+	}
+	if pendingOnly, ok := arguments["pending_only"].(bool); ok && pendingOnly {
+		filters["completed_by"] = "IS NULL"
+	}
+	
+	return filters
+}
+
+// Common filter configurations for each entity type
+type EntityFilters struct {
+	SortFields []string
+	Filters    []string
+}
+
+var (
+	TodoFilters = EntityFilters{
+		SortFields: []string{"uid", "title", "priority", "due_date", "created_at", "updated_at", "user_id", "household_id", "completed_by"},
+		Filters:    []string{"title", "priority", "user_id", "household_id", "completed_by", "tags"},
+	}
+	
+	NotesFilters = EntityFilters{
+		SortFields: []string{"id", "key", "user_id", "household_id", "created_at", "updated_at"},
+		Filters:    []string{"key", "user_id", "household_id", "tags"},
+	}
+	
+	PreferencesFilters = EntityFilters{
+		SortFields: []string{"key", "specifier", "created_at", "updated_at"},
+		Filters:    []string{"key", "specifier", "tags"},
+	}
+	
+	RecipesFilters = EntityFilters{
+		SortFields: []string{"id", "title", "genre", "rating", "prep_time", "cook_time", "total_time", "servings", "difficulty", "user_id", "household_id", "created_at", "updated_at"},
+		Filters:    []string{"title", "genre", "rating", "difficulty", "user_id", "household_id", "tags"},
+	}
+)

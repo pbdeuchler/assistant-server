@@ -40,7 +40,7 @@ type BootstrapResponse struct {
 	Notes       []dao.Notes       `json:"notes"`
 	Preferences []dao.Preferences `json:"preferences"`
 	Prompt      string            `json:"prompt"`
-	Credentials []dao.Credentials `json:"credentials"`
+	Env         map[string]string `json:"env"`
 }
 
 func (h *bootstrapHandlers) bootstrap(w http.ResponseWriter, r *http.Request) {
@@ -66,11 +66,15 @@ func (h *bootstrapHandlers) bootstrap(w http.ResponseWriter, r *http.Request) {
 		credentials = []dao.Credentials{} // Continue with empty credentials
 	}
 
-	// Validate and refresh credentials
-	validatedCredentials := make([]dao.Credentials, 0)
+	// Validate and refresh credentials, collect environment variables
+	env := make(map[string]string)
 	for _, cred := range credentials {
-		if validated, updated := h.validateAndRefreshCredential(ctx, cred); validated {
-			validatedCredentials = append(validatedCredentials, updated)
+		if credEnv, err := h.validateAndRefreshCredential(ctx, cred); err == nil {
+			for key, value := range credEnv {
+				env[key] = value
+			}
+		} else {
+			slog.Error("Failed to validate credential", "credential_id", cred.ID, "error", err)
 		}
 	}
 
@@ -109,25 +113,27 @@ func (h *bootstrapHandlers) bootstrap(w http.ResponseWriter, r *http.Request) {
 		// Todos:               todos,
 		// Notes:               notes,
 		// Preferences:         preferences,
-		Prompt:      prompt,
-		Credentials: validatedCredentials,
+		Prompt: prompt,
+		Env:    env,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
 }
 
-func (h *bootstrapHandlers) validateAndRefreshCredential(ctx context.Context, cred dao.Credentials) (bool, dao.Credentials) {
+func (h *bootstrapHandlers) validateAndRefreshCredential(ctx context.Context, cred dao.Credentials) (map[string]string, error) {
+	env := make(map[string]string)
+	
 	if cred.CredentialType != "GOOGLE_CALENDAR" {
 		// For now, only handle Google Calendar credentials
-		return true, cred
+		return env, nil
 	}
 
 	// Parse the OAuth token from JSON
 	var token oauth2.Token
 	if err := json.Unmarshal(cred.Value, &token); err != nil {
 		slog.Error("Failed to unmarshal OAuth token", "credential_id", cred.ID, "error", err)
-		return false, cred
+		return nil, fmt.Errorf("failed to unmarshal OAuth token: %w", err)
 	}
 
 	// Check if token is expired and has refresh token
@@ -145,29 +151,31 @@ func (h *bootstrapHandlers) validateAndRefreshCredential(ctx context.Context, cr
 		newToken, err := oauth2Config.TokenSource(ctx, &token).Token()
 		if err != nil {
 			slog.Error("Failed to refresh token", "credential_id", cred.ID, "error", err)
-			return false, cred
+			return nil, fmt.Errorf("failed to refresh token: %w", err)
 		}
 
 		// Update the credential with the new token
 		newTokenJSON, err := json.Marshal(newToken)
 		if err != nil {
 			slog.Error("Failed to marshal refreshed token", "credential_id", cred.ID, "error", err)
-			return false, cred
+			return nil, fmt.Errorf("failed to marshal refreshed token: %w", err)
 		}
 
 		cred.Value = newTokenJSON
-		updatedCred, err := h.dao.UpdateCredentials(ctx, cred.ID, cred)
+		_, err = h.dao.UpdateCredentials(ctx, cred.ID, cred)
 		if err != nil {
 			slog.Error("Failed to update credential", "credential_id", cred.ID, "error", err)
-			return false, cred
+			return nil, fmt.Errorf("failed to update credential: %w", err)
 		}
 
 		slog.Info("Successfully refreshed and updated token", "credential_id", cred.ID)
-		return true, updatedCred
+		env["GOOGLE_API_ACCESS_TOKEN"] = newToken.AccessToken
+		return env, nil
 	}
 
 	// Token is still valid
-	return true, cred
+	env["GOOGLE_API_ACCESS_TOKEN"] = token.AccessToken
+	return env, nil
 }
 
 func (h *bootstrapHandlers) compileLLMPrompt(user dao.Users, household *dao.Households, todos []dao.Todo, notes []dao.Notes, preferences []dao.Preferences) string {
@@ -207,7 +215,7 @@ func (h *bootstrapHandlers) compileLLMPrompt(user dao.Users, household *dao.Hous
 	if len(notes) > 0 {
 		prompt.WriteString("# Notes\n\n")
 		for _, note := range notes {
-			prompt.WriteString(fmt.Sprintf("- **%s**: %s\n", note.Title, note.Content))
+			prompt.WriteString(fmt.Sprintf("- **%s**: %s\n", note.Key, note.Data))
 		}
 		prompt.WriteString("\n")
 	}

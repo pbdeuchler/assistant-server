@@ -8,5 +8,6 @@ packages:
       todoDAO:
       notesDAO:
       preferencesDAO:
+      recipesDAO:
       authDAO:
       bootstrapDAO:

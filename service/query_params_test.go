@@ -5,6 +5,8 @@ import (
 	"net/url"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestParseListParams_Defaults(t *testing.T) {
@@ -175,4 +177,97 @@ func TestIsReservedParam(t *testing.T) {
 			t.Errorf("Expected '%s' to not be reserved", param)
 		}
 	}
+}
+
+func TestBuildFiltersFromMCP(t *testing.T) {
+	tests := []struct {
+		name             string
+		arguments        map[string]any
+		supportedFilters []string
+		expectedFilters  map[string]string
+	}{
+		{
+			name: "basic string filters",
+			arguments: map[string]any{
+				"user_id":      "user123",
+				"household_id": "house456",
+				"priority":     float64(3),
+				"tags":         "urgent,work",
+			},
+			supportedFilters: []string{"user_id", "household_id", "priority", "tags"},
+			expectedFilters: map[string]string{
+				"user_id":      "user123",
+				"household_id": "house456",
+				"priority":     "3",
+				"tags":         "urgent,work",
+			},
+		},
+		{
+			name: "with boolean completed filters",
+			arguments: map[string]any{
+				"user_id":       "user123",
+				"completed_only": true,
+			},
+			supportedFilters: []string{"user_id", "completed_by"},
+			expectedFilters: map[string]string{
+				"user_id":      "user123",
+				"completed_by": "NOT NULL",
+			},
+		},
+		{
+			name: "with boolean pending filters",
+			arguments: map[string]any{
+				"user_id":     "user123",
+				"pending_only": true,
+			},
+			supportedFilters: []string{"user_id", "completed_by"},
+			expectedFilters: map[string]string{
+				"user_id":      "user123",
+				"completed_by": "IS NULL",
+			},
+		},
+		{
+			name: "empty values ignored",
+			arguments: map[string]any{
+				"user_id": "user123",
+				"title":   "",
+				"tags":    "",
+			},
+			supportedFilters: []string{"user_id", "title", "tags"},
+			expectedFilters: map[string]string{
+				"user_id": "user123",
+			},
+		},
+		{
+			name: "unsupported filters ignored",
+			arguments: map[string]any{
+				"user_id":    "user123",
+				"unsupported": "value",
+			},
+			supportedFilters: []string{"user_id"},
+			expectedFilters: map[string]string{
+				"user_id": "user123",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := BuildFiltersFromMCP(tt.arguments, tt.supportedFilters)
+			assert.Equal(t, tt.expectedFilters, result)
+		})
+	}
+}
+
+func TestEntityFilters(t *testing.T) {
+	// Test that our entity filter configurations are properly defined
+	assert.Contains(t, TodoFilters.Filters, "tags")
+	assert.Contains(t, NotesFilters.Filters, "tags")
+	assert.Contains(t, PreferencesFilters.Filters, "tags")
+	assert.Contains(t, RecipesFilters.Filters, "tags")
+	
+	assert.Contains(t, TodoFilters.SortFields, "created_at")
+	assert.Contains(t, NotesFilters.SortFields, "created_at")
+	assert.Contains(t, PreferencesFilters.SortFields, "created_at")
+	assert.Contains(t, RecipesFilters.SortFields, "created_at")
 }

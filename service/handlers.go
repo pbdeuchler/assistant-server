@@ -137,11 +137,8 @@ func (h *todoHandlers) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *todoHandlers) list(w http.ResponseWriter, r *http.Request) {
-	allowedSortFields := []string{"uid", "title", "priority", "due_date", "created_at", "updated_at", "user_id", "household_id", "completed_by"}
-	allowedFilters := []string{"title", "priority", "user_id", "household_id", "completed_by"}
-
-	params := ParseListParams(r, allowedSortFields)
-	whereClause, whereArgs := BuildWhereClause(params.Filters, allowedFilters)
+	params := ParseListParams(r, TodoFilters.SortFields)
+	whereClause, whereArgs := BuildWhereClause(params.Filters, TodoFilters.Filters)
 
 	options := dao.ListOptions{
 		Limit:       params.Limit,

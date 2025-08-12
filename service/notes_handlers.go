@@ -78,11 +78,8 @@ func (h *NotesHandlers) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *NotesHandlers) list(w http.ResponseWriter, r *http.Request) {
-	allowedSortFields := []string{"id", "title", "user_id", "household_id", "created_at", "updated_at"}
-	allowedFilters := []string{"title", "user_id", "household_id"}
-
-	params := ParseListParams(r, allowedSortFields)
-	whereClause, whereArgs := BuildWhereClause(params.Filters, allowedFilters)
+	params := ParseListParams(r, NotesFilters.SortFields)
+	whereClause, whereArgs := BuildWhereClause(params.Filters, NotesFilters.Filters)
 
 	options := dao.ListOptions{
 		Limit:       params.Limit,

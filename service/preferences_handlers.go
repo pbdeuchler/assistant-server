@@ -82,11 +82,8 @@ func (h *PreferencesHandlers) delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *PreferencesHandlers) list(w http.ResponseWriter, r *http.Request) {
-	allowedSortFields := []string{"key", "specifier", "created_at", "updated_at"}
-	allowedFilters := []string{"key", "specifier"}
-
-	params := ParseListParams(r, allowedSortFields)
-	whereClause, whereArgs := BuildWhereClause(params.Filters, allowedFilters)
+	params := ParseListParams(r, PreferencesFilters.SortFields)
+	whereClause, whereArgs := BuildWhereClause(params.Filters, PreferencesFilters.Filters)
 
 	options := dao.ListOptions{
 		Limit:       params.Limit,

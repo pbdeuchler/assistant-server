@@ -109,7 +109,7 @@ func TestBackgroundQueries(t *testing.T) {
 func TestPreferencesQueries(t *testing.T) {
 	// Test insertPreferences parameters
 	paramCount := strings.Count(insertPreferences, "$")
-	expectedParams := 3 // key, specifier, data
+	expectedParams := 4 // key, specifier, data, tags
 	
 	if paramCount != expectedParams {
 		t.Errorf("insertPreferences should have %d parameters, found %d", expectedParams, paramCount)
