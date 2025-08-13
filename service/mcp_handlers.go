@@ -21,6 +21,9 @@ type MCPHandlers struct {
 	preferencesDAO preferencesDAO
 	recipesDAO     recipesDAO
 	tools          []mcp.Tool
+	clientInfo     *ClientInfo
+	serverInfo     ServerInfo
+	capabilities   ServerCapabilities
 }
 
 type JSONRPCRequest struct {
@@ -37,12 +40,77 @@ type JSONRPCResponse struct {
 	Error   any    `json:"error,omitempty"`
 }
 
+type ClientInfo struct {
+	Name    string `json:"name"`
+	Title   string `json:"title,omitempty"`
+	Version string `json:"version"`
+}
+
+type ServerInfo struct {
+	Name    string `json:"name"`
+	Title   string `json:"title,omitempty"`
+	Version string `json:"version"`
+}
+
+type InitializeParams struct {
+	ProtocolVersion string             `json:"protocolVersion"`
+	Capabilities    ClientCapabilities `json:"capabilities"`
+	ClientInfo      ClientInfo         `json:"clientInfo"`
+}
+
+type InitializeResult struct {
+	ProtocolVersion string             `json:"protocolVersion"`
+	Capabilities    ServerCapabilities `json:"capabilities"`
+	ServerInfo      ServerInfo         `json:"serverInfo"`
+	Instructions    string             `json:"instructions,omitempty"`
+}
+
+type ClientCapabilities struct {
+	Roots       *RootsCapability `json:"roots,omitempty"`
+	Sampling    map[string]any   `json:"sampling,omitempty"`
+	Elicitation map[string]any   `json:"elicitation,omitempty"`
+}
+
+type ServerCapabilities struct {
+	Logging   map[string]any       `json:"logging,omitempty"`
+	Prompts   *PromptsCapability   `json:"prompts,omitempty"`
+	Resources *ResourcesCapability `json:"resources,omitempty"`
+	Tools     *ToolsCapability     `json:"tools,omitempty"`
+}
+
+type RootsCapability struct {
+	ListChanged bool `json:"listChanged,omitempty"`
+}
+
+type PromptsCapability struct {
+	ListChanged bool `json:"listChanged,omitempty"`
+}
+
+type ResourcesCapability struct {
+	Subscribe   bool `json:"subscribe,omitempty"`
+	ListChanged bool `json:"listChanged,omitempty"`
+}
+
+type ToolsCapability struct {
+	ListChanged bool `json:"listChanged,omitempty"`
+}
+
 func NewMCP(todoDAO todoDAO, notesDAO notesDAO, preferencesDAO preferencesDAO, recipesDAO recipesDAO) *MCPHandlers {
 	h := &MCPHandlers{
 		todoDAO:        todoDAO,
 		notesDAO:       notesDAO,
 		preferencesDAO: preferencesDAO,
 		recipesDAO:     recipesDAO,
+		serverInfo: ServerInfo{
+			Name:    "assistant-server",
+			Title:   "Assistant Server MCP",
+			Version: "1.0.0",
+		},
+		capabilities: ServerCapabilities{
+			Tools: &ToolsCapability{
+				ListChanged: true,
+			},
+		},
 	}
 
 	h.setupTools()
@@ -138,6 +206,21 @@ func (h *MCPHandlers) setupTools() {
 			mcp.WithString("recipe_id", mcp.Required(), mcp.Description("Recipe ID")),
 		),
 	}
+}
+
+func (h *MCPHandlers) handleInitialize(ctx context.Context, params InitializeParams) InitializeResult {
+	h.clientInfo = &params.ClientInfo
+
+	return InitializeResult{
+		ProtocolVersion: "2024-11-05",
+		Capabilities:    h.capabilities,
+		ServerInfo:      h.serverInfo,
+		Instructions:    "Assistant Server MCP provides tools for managing todos, notes, preferences, and recipes.",
+	}
+}
+
+func (h *MCPHandlers) handleInitialized(ctx context.Context) {
+	// Initialization complete - server is ready to handle requests
 }
 
 func (h *MCPHandlers) handleCreateTodo(ctx context.Context, arguments map[string]any) mcp.CallToolResult {
@@ -564,7 +647,7 @@ func (h *MCPHandlers) handleFindRecipes(ctx context.Context, arguments map[strin
 
 	// Use shared filtering logic
 	filters := BuildFiltersFromMCP(arguments, RecipesFilters.Filters)
-	
+
 	// Handle special min_rating filter
 	if minRating, ok := arguments["min_rating"].(float64); ok {
 		filters["rating"] = ">=" + strconv.Itoa(int(minRating))
@@ -661,6 +744,48 @@ func (h *MCPHandlers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	response.ID = req.ID
 
 	switch req.Method {
+	case "initialize":
+		if params, ok := req.Params.(map[string]any); ok {
+			var initParams InitializeParams
+
+			if protocolVersion, ok := params["protocolVersion"].(string); ok {
+				initParams.ProtocolVersion = protocolVersion
+			}
+
+			if clientInfo, ok := params["clientInfo"].(map[string]any); ok {
+				if name, ok := clientInfo["name"].(string); ok {
+					initParams.ClientInfo.Name = name
+				}
+				if title, ok := clientInfo["title"].(string); ok {
+					initParams.ClientInfo.Title = title
+				}
+				if version, ok := clientInfo["version"].(string); ok {
+					initParams.ClientInfo.Version = version
+				}
+			}
+
+			if capabilities, ok := params["capabilities"].(map[string]any); ok {
+				if roots, ok := capabilities["roots"].(map[string]any); ok {
+					if listChanged, ok := roots["listChanged"].(bool); ok {
+						initParams.Capabilities.Roots = &RootsCapability{ListChanged: listChanged}
+					}
+				}
+				if sampling, ok := capabilities["sampling"].(map[string]any); ok {
+					initParams.Capabilities.Sampling = sampling
+				}
+				if elicitation, ok := capabilities["elicitation"].(map[string]any); ok {
+					initParams.Capabilities.Elicitation = elicitation
+				}
+			}
+
+			result := h.handleInitialize(r.Context(), initParams)
+			response.Result = result
+		} else {
+			response.Error = map[string]any{"code": -32602, "message": "Invalid params"}
+		}
+	case "initialized":
+		h.handleInitialized(r.Context())
+		response.Result = map[string]any{}
 	case "tools/list":
 		response.Result = mcp.ListToolsResult{Tools: h.tools}
 	case "tools/call":
@@ -692,4 +817,3 @@ func NewMCPRouter(todoDAO todoDAO, notesDAO notesDAO, preferencesDAO preferences
 	r.Post("/", h.ServeHTTP)
 	return r
 }
-

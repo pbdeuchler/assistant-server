@@ -17,7 +17,7 @@ func httpLogger() func(http.Handler) http.Handler {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		ReplaceAttr: logFormat.ReplaceAttr,
 	})).With(
-		slog.String("app", "example-app"),
+		slog.String("app", "assistant-server"),
 		slog.String("version", "v1.0.0-a1fa420"),
 		slog.String("env", "production"),
 	)

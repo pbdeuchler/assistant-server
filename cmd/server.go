@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -42,7 +44,10 @@ func Serve(ctx context.Context, cfg Config) error {
 	r.Mount("/bootstrap", service.NewBootstrap(db))
 	r.Mount("/mcp", service.NewMCPRouter(db, db, db, db))
 
-	srv := &http.Server{Addr: "0.0.0.0:" + cfg.Port, Handler: r}
+	addr := fmt.Sprintf("0.0.0.0:%s", cfg.Port)
+	log.Printf("Starting server on %s", addr)
+
+	srv := &http.Server{Addr: addr, Handler: r}
 	go func() { <-ctx.Done(); _ = srv.Shutdown(context.Background()) }()
 	return srv.ListenAndServe()
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -75,7 +76,20 @@ func (h *bootstrapHandlers) bootstrap(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			slog.Error("Failed to validate credential", "credential_id", cred.ID, "error", err)
+			// return the oauth url and an error message to the user
+			if cred.CredentialType == "GOOGLE_CALENDAR" {
+				oauthURL := fmt.Sprintf("/oauth/google?user_id=%s", user.UID) // Scope for Google Calendar
+				http.Error(w, fmt.Sprintf("Please authorize your Google Calendar account: %s", oauthURL), http.StatusUnauthorized)
+				return
+			} else {
+				slog.Warn("Unsupported credential type, skipping", "credential_type", cred.CredentialType)
+			}
 		}
+	}
+
+	if os.Getenv("DEVELOPMENT") != "" {
+		env["ASSISTANTSERVER_HOST"] = "http://127.0.0.1:8080/mcp"
+		env["FS_SHIM"] = "1"
 	}
 
 	// Get todos
@@ -123,7 +137,7 @@ func (h *bootstrapHandlers) bootstrap(w http.ResponseWriter, r *http.Request) {
 
 func (h *bootstrapHandlers) validateAndRefreshCredential(ctx context.Context, cred dao.Credentials) (map[string]string, error) {
 	env := make(map[string]string)
-	
+
 	if cred.CredentialType != "GOOGLE_CALENDAR" {
 		// For now, only handle Google Calendar credentials
 		return env, nil
@@ -182,7 +196,7 @@ func (h *bootstrapHandlers) compileLLMPrompt(user dao.Users, household *dao.Hous
 	var prompt strings.Builder
 
 	prompt.WriteString("# User Context\n\n")
-	prompt.WriteString(fmt.Sprintf("**User:** %s (%s)\n", user.Name, user.Email))
+	prompt.WriteString(fmt.Sprintf("**User:** \n %s | %s | user_id=%s\n", user.Name, user.Email, user.UID))
 	if user.Description != "" {
 		prompt.WriteString(fmt.Sprintf("**Description:** %s\n", user.Description))
 	}

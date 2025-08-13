@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
+	dao "github.com/pbdeuchler/assistant-server/dao/postgres"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	dao "github.com/pbdeuchler/assistant-server/dao/postgres"
 )
 
 type MockTodoDAO struct {
@@ -460,4 +460,196 @@ func TestMCPHandlers_ToolsList(t *testing.T) {
 	tools, ok := result["tools"].([]any)
 	assert.True(t, ok)
 	assert.Len(t, tools, 11) // We have 11 tools defined
+}
+
+func TestMCPHandlers_Initialize(t *testing.T) {
+	tests := []struct {
+		name           string
+		request        map[string]any
+		expectedError  bool
+		expectedResult InitializeResult
+	}{
+		{
+			name: "successful initialization",
+			request: map[string]any{
+				"protocolVersion": "2024-11-05",
+				"capabilities": map[string]any{
+					"roots": map[string]any{
+						"listChanged": true,
+					},
+					"sampling":    map[string]any{},
+					"elicitation": map[string]any{},
+				},
+				"clientInfo": map[string]any{
+					"name":    "TestClient",
+					"title":   "Test Client",
+					"version": "1.0.0",
+				},
+			},
+			expectedError: false,
+			expectedResult: InitializeResult{
+				ProtocolVersion: "2024-11-05",
+				ServerInfo: ServerInfo{
+					Name:    "assistant-server",
+					Title:   "Assistant Server MCP",
+					Version: "1.0.0",
+				},
+				Instructions: "Assistant Server MCP provides tools for managing todos, notes, preferences, and recipes.",
+			},
+		},
+		{
+			name: "minimal initialization",
+			request: map[string]any{
+				"protocolVersion": "2024-11-05",
+				"capabilities":    map[string]any{},
+				"clientInfo": map[string]any{
+					"name":    "MinimalClient",
+					"version": "0.1.0",
+				},
+			},
+			expectedError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockTodoDAO := &MockTodoDAO{}
+			mockNotesDAO := &MockNotesDAO{}
+			mockPrefsDAO := &MockPreferencesDAO{}
+			mockRecipesDAO := &MockRecipesDAO{}
+
+			h := NewMCP(mockTodoDAO, mockNotesDAO, mockPrefsDAO, mockRecipesDAO)
+
+			var initParams InitializeParams
+			if protocolVersion, ok := tt.request["protocolVersion"].(string); ok {
+				initParams.ProtocolVersion = protocolVersion
+			}
+
+			if clientInfo, ok := tt.request["clientInfo"].(map[string]any); ok {
+				if name, ok := clientInfo["name"].(string); ok {
+					initParams.ClientInfo.Name = name
+				}
+				if title, ok := clientInfo["title"].(string); ok {
+					initParams.ClientInfo.Title = title
+				}
+				if version, ok := clientInfo["version"].(string); ok {
+					initParams.ClientInfo.Version = version
+				}
+			}
+
+			result := h.handleInitialize(context.Background(), initParams)
+
+			assert.Equal(t, "2024-11-05", result.ProtocolVersion)
+			assert.Equal(t, "assistant-server", result.ServerInfo.Name)
+			assert.Equal(t, "Assistant Server MCP", result.ServerInfo.Title)
+			assert.Equal(t, "1.0.0", result.ServerInfo.Version)
+			assert.NotNil(t, result.Capabilities.Tools)
+			assert.True(t, result.Capabilities.Tools.ListChanged)
+			assert.NotEmpty(t, result.Instructions)
+
+			// Check that client info was stored
+			assert.NotNil(t, h.clientInfo)
+			assert.Equal(t, initParams.ClientInfo.Name, h.clientInfo.Name)
+			assert.Equal(t, initParams.ClientInfo.Version, h.clientInfo.Version)
+		})
+	}
+}
+
+func TestMCPHandlers_InitializeHTTP(t *testing.T) {
+	mockTodoDAO := &MockTodoDAO{}
+	mockNotesDAO := &MockNotesDAO{}
+	mockPrefsDAO := &MockPreferencesDAO{}
+	mockRecipesDAO := &MockRecipesDAO{}
+
+	router := NewMCPRouter(mockTodoDAO, mockNotesDAO, mockPrefsDAO, mockRecipesDAO)
+
+	mcpRequest := map[string]any{
+		"jsonrpc": "2.0",
+		"id":      1,
+		"method":  "initialize",
+		"params": map[string]any{
+			"protocolVersion": "2024-11-05",
+			"capabilities": map[string]any{
+				"roots": map[string]any{
+					"listChanged": true,
+				},
+				"sampling":    map[string]any{},
+				"elicitation": map[string]any{},
+			},
+			"clientInfo": map[string]any{
+				"name":    "TestClient",
+				"title":   "Test Client",
+				"version": "1.0.0",
+			},
+		},
+	}
+
+	reqBody, _ := json.Marshal(mcpRequest)
+	req := httptest.NewRequest("POST", "/", bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var response map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Equal(t, "2.0", response["jsonrpc"])
+	assert.Equal(t, float64(1), response["id"])
+
+	result, ok := response["result"].(map[string]any)
+	assert.True(t, ok)
+	assert.Equal(t, "2024-11-05", result["protocolVersion"])
+
+	serverInfo, ok := result["serverInfo"].(map[string]any)
+	assert.True(t, ok)
+	assert.Equal(t, "assistant-server", serverInfo["name"])
+	assert.Equal(t, "Assistant Server MCP", serverInfo["title"])
+	assert.Equal(t, "1.0.0", serverInfo["version"])
+
+	capabilities, ok := result["capabilities"].(map[string]any)
+	assert.True(t, ok)
+	assert.NotNil(t, capabilities["tools"])
+
+	instructions, ok := result["instructions"].(string)
+	assert.True(t, ok)
+	assert.NotEmpty(t, instructions)
+}
+
+func TestMCPHandlers_InitializedHTTP(t *testing.T) {
+	mockTodoDAO := &MockTodoDAO{}
+	mockNotesDAO := &MockNotesDAO{}
+	mockPrefsDAO := &MockPreferencesDAO{}
+	mockRecipesDAO := &MockRecipesDAO{}
+
+	router := NewMCPRouter(mockTodoDAO, mockNotesDAO, mockPrefsDAO, mockRecipesDAO)
+
+	mcpRequest := map[string]any{
+		"jsonrpc": "2.0",
+		"id":      2,
+		"method":  "initialized",
+	}
+
+	reqBody, _ := json.Marshal(mcpRequest)
+	req := httptest.NewRequest("POST", "/", bytes.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+
+	var response map[string]any
+	err := json.Unmarshal(w.Body.Bytes(), &response)
+	assert.NoError(t, err)
+	assert.Equal(t, "2.0", response["jsonrpc"])
+	assert.Equal(t, float64(2), response["id"])
+
+	result, ok := response["result"].(map[string]any)
+	assert.True(t, ok)
+	assert.Empty(t, result) // initialized should return empty result
 }
