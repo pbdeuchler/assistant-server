@@ -106,6 +106,72 @@ func (_c *MockbootstrapDAO_GetCredentialsByUserID_Call) RunAndReturn(run func(ct
 	return _c
 }
 
+// GetHousehold provides a mock function for the type MockbootstrapDAO
+func (_mock *MockbootstrapDAO) GetHousehold(ctx context.Context, uid string) (postgres.Households, error) {
+	ret := _mock.Called(ctx, uid)
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetHousehold")
+	}
+
+	var r0 postgres.Households
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (postgres.Households, error)); ok {
+		return returnFunc(ctx, uid)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) postgres.Households); ok {
+		r0 = returnFunc(ctx, uid)
+	} else {
+		r0 = ret.Get(0).(postgres.Households)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = returnFunc(ctx, uid)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockbootstrapDAO_GetHousehold_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetHousehold'
+type MockbootstrapDAO_GetHousehold_Call struct {
+	*mock.Call
+}
+
+// GetHousehold is a helper method to define mock.On call
+//   - ctx context.Context
+//   - uid string
+func (_e *MockbootstrapDAO_Expecter) GetHousehold(ctx interface{}, uid interface{}) *MockbootstrapDAO_GetHousehold_Call {
+	return &MockbootstrapDAO_GetHousehold_Call{Call: _e.mock.On("GetHousehold", ctx, uid)}
+}
+
+func (_c *MockbootstrapDAO_GetHousehold_Call) Run(run func(ctx context.Context, uid string)) *MockbootstrapDAO_GetHousehold_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockbootstrapDAO_GetHousehold_Call) Return(households postgres.Households, err error) *MockbootstrapDAO_GetHousehold_Call {
+	_c.Call.Return(households, err)
+	return _c
+}
+
+func (_c *MockbootstrapDAO_GetHousehold_Call) RunAndReturn(run func(ctx context.Context, uid string) (postgres.Households, error)) *MockbootstrapDAO_GetHousehold_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetNotesByUserID provides a mock function for the type MockbootstrapDAO
 func (_mock *MockbootstrapDAO) GetNotesByUserID(ctx context.Context, userID string) ([]postgres.Notes, error) {
 	ret := _mock.Called(ctx, userID)

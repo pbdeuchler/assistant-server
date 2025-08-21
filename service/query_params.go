@@ -80,8 +80,18 @@ func BuildWhereClause(filters map[string]string, allowedFilters []string) (strin
 	for key, value := range filters {
 		// Handle tag filtering specially
 		if key == "tags" {
+			// Handle comma-separated tags from URL parameters
+			var tagList []string
+			if strings.Contains(value, ",") {
+				tagList = strings.Split(value, ",")
+				for i, tag := range tagList {
+					tagList[i] = strings.TrimSpace(tag)
+				}
+			} else {
+				tagList = []string{strings.TrimSpace(value)}
+			}
 			conditions = append(conditions, fmt.Sprintf("tags @> $%d", argIndex))
-			args = append(args, []string{value})
+			args = append(args, tagList)
 			argIndex++
 			continue
 		}
@@ -89,8 +99,41 @@ func BuildWhereClause(filters map[string]string, allowedFilters []string) (strin
 		// Handle regular filters
 		for _, allowed := range allowedFilters {
 			if key == allowed {
-				conditions = append(conditions, fmt.Sprintf("%s = $%d", key, argIndex))
-				args = append(args, value)
+				// Handle operators in the value (like ">=3", "<5", etc.)
+				if strings.HasPrefix(value, ">=") {
+					conditions = append(conditions, fmt.Sprintf("%s >= $%d", key, argIndex))
+					args = append(args, value[2:]) // Remove ">=" prefix
+				} else if strings.HasPrefix(value, "<=") {
+					conditions = append(conditions, fmt.Sprintf("%s <= $%d", key, argIndex))
+					args = append(args, value[2:]) // Remove "<=" prefix
+				} else if strings.HasPrefix(value, ">") {
+					conditions = append(conditions, fmt.Sprintf("%s > $%d", key, argIndex))
+					args = append(args, value[1:]) // Remove ">" prefix
+				} else if strings.HasPrefix(value, "<") {
+					conditions = append(conditions, fmt.Sprintf("%s < $%d", key, argIndex))
+					args = append(args, value[1:]) // Remove "<" prefix
+				} else if strings.HasPrefix(value, "!=") {
+					conditions = append(conditions, fmt.Sprintf("%s != $%d", key, argIndex))
+					args = append(args, value[2:]) // Remove "!=" prefix
+				} else if value == "IS NULL" {
+					conditions = append(conditions, fmt.Sprintf("%s IS NULL", key))
+					// Don't increment argIndex since we don't add an arg
+					continue
+				} else if value == "NOT NULL" {
+					conditions = append(conditions, fmt.Sprintf("%s IS NOT NULL", key))
+					// Don't increment argIndex since we don't add an arg
+					continue
+				} else {
+					// Handle partial matching for title fields
+					if key == "title" {
+						conditions = append(conditions, fmt.Sprintf("%s ILIKE $%d", key, argIndex))
+						args = append(args, "%"+value+"%") // Add wildcards for partial matching
+					} else {
+						// Default equality
+						conditions = append(conditions, fmt.Sprintf("%s = $%d", key, argIndex))
+						args = append(args, value)
+					}
+				}
 				argIndex++
 				break
 			}
@@ -142,13 +185,13 @@ type EntityFilters struct {
 
 var (
 	TodoFilters = EntityFilters{
-		SortFields: []string{"uid", "title", "priority", "due_date", "created_at", "updated_at", "user_id", "household_id", "completed_by"},
-		Filters:    []string{"title", "priority", "user_id", "household_id", "completed_by", "tags"},
+		SortFields: []string{"uid", "title", "priority", "due_date", "created_at", "updated_at", "user_uid", "household_uid", "completed_by"},
+		Filters:    []string{"title", "priority", "user_uid", "household_uid", "completed_by", "tags"},
 	}
 	
 	NotesFilters = EntityFilters{
-		SortFields: []string{"id", "key", "user_id", "household_id", "created_at", "updated_at"},
-		Filters:    []string{"key", "user_id", "household_id", "tags"},
+		SortFields: []string{"id", "key", "user_uid", "household_uid", "created_at", "updated_at"},
+		Filters:    []string{"key", "user_uid", "household_uid", "tags"},
 	}
 	
 	PreferencesFilters = EntityFilters{
@@ -157,7 +200,7 @@ var (
 	}
 	
 	RecipesFilters = EntityFilters{
-		SortFields: []string{"id", "title", "genre", "rating", "prep_time", "cook_time", "total_time", "servings", "difficulty", "user_id", "household_id", "created_at", "updated_at"},
-		Filters:    []string{"title", "genre", "rating", "difficulty", "user_id", "household_id", "tags"},
+		SortFields: []string{"id", "title", "genre", "rating", "prep_time", "cook_time", "total_time", "servings", "difficulty", "user_uid", "household_uid", "created_at", "updated_at"},
+		Filters:    []string{"title", "genre", "rating", "cook_time", "prep_time", "total_time", "servings", "difficulty", "user_uid", "household_uid", "tags"},
 	}
 )

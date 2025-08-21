@@ -79,6 +79,15 @@ func (h *RecipesHandlers) delete(w http.ResponseWriter, r *http.Request) {
 
 func (h *RecipesHandlers) list(w http.ResponseWriter, r *http.Request) {
 	params := ParseListParams(r, RecipesFilters.SortFields)
+	
+	// Handle special recipe filters
+	if minRating := r.URL.Query().Get("min_rating"); minRating != "" {
+		params.Filters["rating"] = ">=" + minRating
+	}
+	if maxCookTime := r.URL.Query().Get("max_cook_time"); maxCookTime != "" {
+		params.Filters["cook_time"] = "<=" + maxCookTime
+	}
+	
 	whereClause, whereArgs := BuildWhereClause(params.Filters, RecipesFilters.Filters)
 
 	options := dao.ListOptions{

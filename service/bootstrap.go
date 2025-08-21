@@ -16,11 +16,14 @@ import (
 )
 
 type bootstrapDAO interface {
-	GetUserBySlackUserID(ctx context.Context, slackUserID string) (dao.Users, error)
-	GetCredentialsByUserID(ctx context.Context, userID string) ([]dao.Credentials, error)
-	GetTodosByUserID(ctx context.Context, userID string) ([]dao.Todo, error)
-	GetNotesByUserID(ctx context.Context, userID string) ([]dao.Notes, error)
-	GetPreferencesByUserID(ctx context.Context, userID string) ([]dao.Preferences, error)
+	GetUserBySlackUserUID(ctx context.Context, slackUserUID string) (dao.Users, error)
+	GetUser(ctx context.Context, uid string) (dao.Users, error)
+	GetCredentialsByUserUID(ctx context.Context, userUID string) ([]dao.Credentials, error)
+	GetTodosByUserUID(ctx context.Context, userUID string) ([]dao.Todo, error)
+	GetNotesByUserUID(ctx context.Context, userUID string) ([]dao.Notes, error)
+	GetPreferencesByUserUID(ctx context.Context, userUID string) ([]dao.Preferences, error)
+	GetRecipesByUserUID(ctx context.Context, userUID string) ([]dao.Recipes, error)
+	GetHousehold(ctx context.Context, uid string) (dao.Households, error)
 	UpdateCredentials(ctx context.Context, id string, c dao.Credentials) (dao.Credentials, error)
 }
 
@@ -35,13 +38,17 @@ func NewBootstrap(dao bootstrapDAO) http.Handler {
 }
 
 type BootstrapResponse struct {
-	User        dao.Users         `json:"user"`
-	Household   *dao.Households   `json:"household,omitempty"`
-	Todos       []dao.Todo        `json:"todos"`
-	Notes       []dao.Notes       `json:"notes"`
-	Preferences []dao.Preferences `json:"preferences"`
-	Prompt      string            `json:"prompt"`
-	Env         map[string]string `json:"env"`
+	User               dao.Users         `json:"user"`
+	Household          *dao.Households   `json:"household,omitempty"`
+	Todos              []dao.Todo        `json:"todos,omitempty"`
+	Notes              []dao.Notes       `json:"notes,omitempty"`
+	Preferences        []dao.Preferences `json:"preferences,omitempty"`
+	Recipes            []dao.Recipes     `json:"recipes,omitempty"`
+	Prompt             string            `json:"prompt,omitempty"`
+	AppendSystemPrompt string            `json:"append_system_prompt,omitempty"`
+	AllowedTools       []string          `json:"allowed_tools,omitempty"`
+	DisallowedTools    []string          `json:"disallowed_tools,omitempty"`
+	Env                map[string]string `json:"env"`
 }
 
 func (h *bootstrapHandlers) bootstrap(w http.ResponseWriter, r *http.Request) {
@@ -54,14 +61,14 @@ func (h *bootstrapHandlers) bootstrap(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	// Look up the user by slack ID
-	user, err := h.dao.GetUserBySlackUserID(ctx, slackID)
+	user, err := h.dao.GetUserBySlackUserUID(ctx, slackID)
 	if err != nil {
 		http.Error(w, "User not found for slack ID: "+err.Error(), http.StatusNotFound)
 		return
 	}
 
 	// Get user credentials
-	credentials, err := h.dao.GetCredentialsByUserID(ctx, user.UID)
+	credentials, err := h.dao.GetCredentialsByUserUID(ctx, user.UID)
 	if err != nil {
 		slog.Error("Failed to get credentials", "user_id", user.UID, "error", err)
 		credentials = []dao.Credentials{} // Continue with empty credentials
@@ -93,42 +100,55 @@ func (h *bootstrapHandlers) bootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get todos
-	todos, err := h.dao.GetTodosByUserID(ctx, user.UID)
+	todos, err := h.dao.GetTodosByUserUID(ctx, user.UID)
 	if err != nil {
 		slog.Error("Failed to get todos", "user_id", user.UID, "error", err)
 		todos = []dao.Todo{}
 	}
 
 	// Get notes
-	notes, err := h.dao.GetNotesByUserID(ctx, user.UID)
+	notes, err := h.dao.GetNotesByUserUID(ctx, user.UID)
 	if err != nil {
 		slog.Error("Failed to get notes", "user_id", user.UID, "error", err)
 		notes = []dao.Notes{}
 	}
 
 	// Get preferences
-	preferences, err := h.dao.GetPreferencesByUserID(ctx, user.UID)
+	preferences, err := h.dao.GetPreferencesByUserUID(ctx, user.UID)
 	if err != nil {
 		slog.Error("Failed to get preferences", "user_id", user.UID, "error", err)
 		preferences = []dao.Preferences{}
 	}
 
-	// Try to get household (may not exist)
+	// Get recipes
+	// recipes, err := h.dao.GetRecipesByUserUID(ctx, user.UID)
+	// if err != nil {
+	// 	slog.Error("Failed to get recipes", "user_id", user.UID, "error", err)
+	// 	recipes = []dao.Recipes{}
+	// }
+
+	// Try to get household if user is associated with one
 	var household *dao.Households
-	// Note: We need to add household relationship logic later
-	// For now, leave household as nil
+	if user.HouseholdUID != nil && *user.HouseholdUID != "" {
+		if h, err := h.dao.GetHousehold(ctx, *user.HouseholdUID); err == nil {
+			household = &h
+		} else {
+			slog.Error("Failed to get household", "household_uid", *user.HouseholdUID, "error", err)
+		}
+	}
 
 	// Compile structured prompt for LLM
 	prompt := h.compileLLMPrompt(user, household, todos, notes, preferences)
 
 	response := BootstrapResponse{
-		User: user,
-		// Household:           household,
-		// Todos:               todos,
-		// Notes:               notes,
-		// Preferences:         preferences,
-		Prompt: prompt,
-		Env:    env,
+		User:               user,
+		Todos:              todos,
+		Notes:              notes,
+		Preferences:        preferences,
+		AppendSystemPrompt: prompt,
+		AllowedTools:       []string{"mcp__assistant-mcp"},
+		DisallowedTools:    []string{"TodoWrite"},
+		Env:                env,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -157,8 +177,8 @@ func (h *bootstrapHandlers) validateAndRefreshCredential(ctx context.Context, cr
 		// Create OAuth2 config for token refresh
 		oauth2Config := &oauth2.Config{
 			// We need these from environment or config - for now use placeholders
-			ClientID:     "placeholder", // TODO: Get from config
-			ClientSecret: "placeholder", // TODO: Get from config
+			ClientID:     os.Getenv("GCLOUD_CLIENT_ID"),
+			ClientSecret: os.Getenv("GCLOUD_CLIENT_SECRET"),
 		}
 
 		// Attempt to refresh the token
@@ -196,7 +216,7 @@ func (h *bootstrapHandlers) compileLLMPrompt(user dao.Users, household *dao.Hous
 	var prompt strings.Builder
 
 	prompt.WriteString("# User Context\n\n")
-	prompt.WriteString(fmt.Sprintf("**User:** \n %s | %s | user_id=%s\n", user.Name, user.Email, user.UID))
+	prompt.WriteString(fmt.Sprintf("**User:** \n %s | %s | user_uid=%s\n", user.Name, user.Email, user.UID))
 	if user.Description != "" {
 		prompt.WriteString(fmt.Sprintf("**Description:** %s\n", user.Description))
 	}
@@ -204,7 +224,7 @@ func (h *bootstrapHandlers) compileLLMPrompt(user dao.Users, household *dao.Hous
 
 	if household != nil {
 		prompt.WriteString("# Household Context\n\n")
-		prompt.WriteString(fmt.Sprintf("**Household:** %s\n", household.Name))
+		prompt.WriteString(fmt.Sprintf("**Household:** %s (uid=%s)\n", household.Name, household.UID))
 		if household.Description != "" {
 			prompt.WriteString(fmt.Sprintf("**Description:** %s\n", household.Description))
 		}

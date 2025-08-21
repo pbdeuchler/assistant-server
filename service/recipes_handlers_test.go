@@ -43,8 +43,8 @@ func TestRecipesCreate(t *testing.T) {
 		Difficulty:  &difficulty,
 		Rating:      &rating,
 		Tags:        []string{"pasta", "dinner"},
-		UserID:      "user-123",
-		HouseholdID: "household-456",
+		UserUID:      "user-123",
+		HouseholdUID: "household-456",
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -53,8 +53,8 @@ func TestRecipesCreate(t *testing.T) {
 		mock.Anything, 
 		mock.MatchedBy(func(r postgres.Recipes) bool {
 			return r.Title == "Test Recipe" && 
-				   r.UserID == "user-123" &&
-				   r.HouseholdID == "household-456" &&
+				   r.UserUID == "user-123" &&
+				   r.HouseholdUID == "household-456" &&
 				   r.Data == "Recipe instructions here" &&
 				   len(r.Tags) == 2
 		})).Return(expectedRecipe, nil)
@@ -74,8 +74,8 @@ func TestRecipesCreate(t *testing.T) {
 		"difficulty": "medium",
 		"rating": 5,
 		"tags": ["pasta", "dinner"],
-		"user_id": "user-123",
-		"household_id": "household-456"
+		"user_uid": "user-123",
+		"household_uid": "household-456"
 	}`
 
 	req := httptest.NewRequest("POST", "/", strings.NewReader(reqBody))
@@ -123,8 +123,8 @@ func TestRecipesCreateDAOError(t *testing.T) {
 	reqBody := `{
 		"title": "Test Recipe",
 		"data": "Recipe instructions",
-		"user_id": "user-123",
-		"household_id": "household-456"
+		"user_uid": "user-123",
+		"household_uid": "household-456"
 	}`
 
 	req := httptest.NewRequest("POST", "/", strings.NewReader(reqBody))
@@ -150,8 +150,8 @@ func TestRecipesGet(t *testing.T) {
 		Rating:      &rating,
 		Servings:    &servings,
 		Tags:        []string{"dessert"},
-		UserID:      "user-123",
-		HouseholdID: "household-456",
+		UserUID:      "user-123",
+		HouseholdUID: "household-456",
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -212,8 +212,8 @@ func TestRecipesUpdate(t *testing.T) {
 		Data:        "Updated instructions",
 		Rating:      &rating,
 		Tags:        []string{"updated"},
-		UserID:      "user-123",
-		HouseholdID: "household-456",
+		UserUID:      "user-123",
+		HouseholdUID: "household-456",
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -227,8 +227,8 @@ func TestRecipesUpdate(t *testing.T) {
 		"data": "Updated instructions",
 		"rating": 5,
 		"tags": ["updated"],
-		"user_id": "user-123",
-		"household_id": "household-456"
+		"user_uid": "user-123",
+		"household_uid": "household-456"
 	}`
 
 	req := httptest.NewRequest("PUT", "/test-id", strings.NewReader(reqBody))
@@ -350,8 +350,8 @@ func TestRecipesList(t *testing.T) {
 			Data:        "Instructions 1",
 			Rating:      &rating1,
 			Tags:        []string{"breakfast"},
-			UserID:      "user-123",
-			HouseholdID: "household-456",
+			UserUID:      "user-123",
+			HouseholdUID: "household-456",
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
 		},
@@ -361,8 +361,8 @@ func TestRecipesList(t *testing.T) {
 			Data:        "Instructions 2",
 			Rating:      &rating2,
 			Tags:        []string{"dinner"},
-			UserID:      "user-123",
-			HouseholdID: "household-456",
+			UserUID:      "user-123",
+			HouseholdUID: "household-456",
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
 		},

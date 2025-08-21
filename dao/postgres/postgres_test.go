@@ -86,8 +86,8 @@ func TestCreateTodo(t *testing.T) {
 							*dest[6].(*string) = ""                 // RecursOn
 							// dest[7] is MarkedComplete (*time.Time) - leave nil
 							*dest[8].(*string) = ""                 // ExternalURL
-							*dest[9].(*string) = "user-123"        // UserID
-							*dest[10].(*string) = "household-456"  // HouseholdID
+							*dest[9].(*string) = "user-123"        // UserUID
+							*dest[10].(*string) = "household-456"  // HouseholdUID
 							*dest[11].(*string) = ""               // CompletedBy
 							*dest[12].(*time.Time) = now           // CreatedAt
 							*dest[13].(*time.Time) = now           // UpdatedAt
@@ -340,10 +340,10 @@ func TestBuildListQueryEdgeCases(t *testing.T) {
 				Offset:      5,
 				SortBy:      "priority",
 				SortDir:     "ASC",
-				WhereClause: "WHERE user_id = $1 AND priority > $2 AND created_at > $3",
+				WhereClause: "WHERE user_uid = $1 AND priority > $2 AND created_at > $3",
 				WhereArgs:   []any{"user-123", 1, "2024-01-01"},
 			},
-			expectedSQL: "SELECT * FROM todos WHERE user_id = $1 AND priority > $2 AND created_at > $3 ORDER BY priority ASC LIMIT $4 OFFSET $5",
+			expectedSQL: "SELECT * FROM todos WHERE user_uid = $1 AND priority > $2 AND created_at > $3 ORDER BY priority ASC LIMIT $4 OFFSET $5",
 		},
 		{
 			name:      "zero limit and offset",
@@ -456,8 +456,8 @@ func TestCreateNotes(t *testing.T) {
 					scanFunc: func(dest ...any) error {
 						*dest[0].(*string) = "test-id"                      // ID
 						*dest[1].(*string) = "Test Note"                    // Key
-						*dest[2].(*string) = "user123"                      // UserID
-						*dest[3].(*string) = "household456"                 // HouseholdID
+						*dest[2].(*string) = "user123"                      // UserUID
+						*dest[3].(*string) = "household456"                 // HouseholdUID
 						*dest[4].(*string) = "This is the content of the note" // Data
 						*dest[5].(*[]string) = []string{"tag1", "tag2"}    // Tags
 						*dest[6].(*time.Time) = now                         // CreatedAt
@@ -475,8 +475,8 @@ func TestCreateNotes(t *testing.T) {
 	note := Notes{
 		ID:          "test-id",
 		Key:         "Test Note",
-		UserID:      "user123",
-		HouseholdID: "household456",
+		UserUID:      "user123",
+		HouseholdUID: "household456",
 		Data:        "This is the content of the note",
 		Tags:        []string{"tag1", "tag2"},
 	}
@@ -492,11 +492,11 @@ func TestCreateNotes(t *testing.T) {
 	if result.Key != "Test Note" {
 		t.Errorf("Expected key 'Test Note', got '%s'", result.Key)
 	}
-	if result.UserID != "user123" {
-		t.Errorf("Expected user_id 'user123', got '%s'", result.UserID)
+	if result.UserUID != "user123" {
+		t.Errorf("Expected user_uid 'user123', got '%s'", result.UserUID)
 	}
-	if result.HouseholdID != "household456" {
-		t.Errorf("Expected household_id 'household456', got '%s'", result.HouseholdID)
+	if result.HouseholdUID != "household456" {
+		t.Errorf("Expected household_uid 'household456', got '%s'", result.HouseholdUID)
 	}
 }
 
@@ -509,8 +509,8 @@ func TestGetNotes(t *testing.T) {
 					scanFunc: func(dest ...any) error {
 						*dest[0].(*string) = "test-id"           // ID
 						*dest[1].(*string) = "Test Note"         // Key
-						*dest[2].(*string) = "user123"           // UserID
-						*dest[3].(*string) = "household456"      // HouseholdID
+						*dest[2].(*string) = "user123"           // UserUID
+						*dest[3].(*string) = "household456"      // HouseholdUID
 						*dest[4].(*string) = "This is the content" // Data
 						*dest[5].(*[]string) = []string{"tag1"}   // Tags
 						*dest[6].(*time.Time) = now              // CreatedAt
@@ -633,8 +633,8 @@ func TestCreateNotesError(t *testing.T) {
 	note := Notes{
 		ID:          "test-id",
 		Key:         "Test Note",
-		UserID:      "user123",
-		HouseholdID: "household456",
+		UserUID:      "user123",
+		HouseholdUID: "household456",
 		Data:        "This is the content of the note",
 		Tags:        []string{"tag1", "tag2"},
 	}
@@ -696,8 +696,8 @@ func TestScanTodo(t *testing.T) {
 			*dest[6].(*string) = ""                 // RecursOn
 			// dest[7] is MarkedComplete (*time.Time) - leave nil
 			*dest[8].(*string) = ""                 // ExternalURL
-			*dest[9].(*string) = "user-123"        // UserID
-			*dest[10].(*string) = "household-456"  // HouseholdID
+			*dest[9].(*string) = "user-123"        // UserUID
+			*dest[10].(*string) = "household-456"  // HouseholdUID
 			*dest[11].(*string) = ""               // CompletedBy
 			*dest[12].(*time.Time) = now           // CreatedAt
 			*dest[13].(*time.Time) = now           // UpdatedAt
@@ -832,8 +832,8 @@ func TestScanNotes(t *testing.T) {
 	if note.ID != "test-id" {
 		t.Errorf("Expected ID 'test-id', got '%s'", note.ID)
 	}
-	if note.UserID != "user123" {
-		t.Errorf("Expected UserID 'user123', got '%s'", note.UserID)
+	if note.UserUID != "user123" {
+		t.Errorf("Expected UserUID 'user123', got '%s'", note.UserUID)
 	}
 	if len(note.Tags) != 2 {
 		t.Errorf("Expected 2 tags, got %d", len(note.Tags))

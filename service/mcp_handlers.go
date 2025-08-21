@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -15,15 +17,35 @@ import (
 	dao "github.com/pbdeuchler/assistant-server/dao/postgres"
 )
 
+type userDAO interface {
+	UpdateUser(ctx context.Context, uid string, u dao.UpdateUser) (dao.Users, error)
+	GetUser(ctx context.Context, uid string) (dao.Users, error)
+}
+
+type householdDAO interface {
+	UpdateHousehold(ctx context.Context, uid string, h dao.UpdateHousehold) (dao.Households, error)
+	GetHousehold(ctx context.Context, uid string) (dao.Households, error)
+}
+
 type MCPHandlers struct {
 	todoDAO        todoDAO
 	notesDAO       notesDAO
 	preferencesDAO preferencesDAO
 	recipesDAO     recipesDAO
+	userDAO        userDAO
+	householdDAO   householdDAO
 	tools          []mcp.Tool
 	clientInfo     *ClientInfo
 	serverInfo     ServerInfo
 	capabilities   ServerCapabilities
+	logger         *slog.Logger
+}
+
+func (h *MCPHandlers) log() *slog.Logger {
+	if h.logger != nil {
+		return h.logger
+	}
+	return slog.Default()
 }
 
 type JSONRPCRequest struct {
@@ -95,12 +117,20 @@ type ToolsCapability struct {
 	ListChanged bool `json:"listChanged,omitempty"`
 }
 
-func NewMCP(todoDAO todoDAO, notesDAO notesDAO, preferencesDAO preferencesDAO, recipesDAO recipesDAO) *MCPHandlers {
+func NewMCP(todoDAO todoDAO, notesDAO notesDAO, preferencesDAO preferencesDAO, recipesDAO recipesDAO, userDAO userDAO, householdDAO householdDAO) *MCPHandlers {
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{})).With(
+		slog.String("component", "mcp"),
+		slog.String("app", "assistant-server"),
+	)
+
 	h := &MCPHandlers{
 		todoDAO:        todoDAO,
 		notesDAO:       notesDAO,
 		preferencesDAO: preferencesDAO,
 		recipesDAO:     recipesDAO,
+		userDAO:        userDAO,
+		householdDAO:   householdDAO,
+		logger:         logger,
 		serverInfo: ServerInfo{
 			Name:    "assistant-server",
 			Title:   "Assistant Server MCP",
@@ -114,6 +144,11 @@ func NewMCP(todoDAO todoDAO, notesDAO notesDAO, preferencesDAO preferencesDAO, r
 	}
 
 	h.setupTools()
+	logger.Info("MCP server initialized",
+		slog.Int("tools_count", len(h.tools)),
+		slog.String("server_name", h.serverInfo.Name),
+		slog.String("server_version", h.serverInfo.Version),
+	)
 	return h
 }
 
@@ -125,13 +160,13 @@ func (h *MCPHandlers) setupTools() {
 			mcp.WithString("description", mcp.Description("Task description")),
 			mcp.WithNumber("priority", mcp.Description("Priority level 1-5 (5 is highest)")),
 			mcp.WithString("due_date", mcp.Description("Due date in RFC3339 format (e.g., 2024-01-15T10:00:00Z)")),
-			mcp.WithString("user_id", mcp.Description("User ID")),
-			mcp.WithString("household_id", mcp.Description("Household ID")),
+			mcp.WithString("user_uid", mcp.Description("User ID")),
+			mcp.WithString("household_uid", mcp.Description("Household ID")),
 		),
 		mcp.NewTool("list_todos",
 			mcp.WithDescription("List todos with optional filtering"),
-			mcp.WithString("user_id", mcp.Description("Filter by user ID")),
-			mcp.WithString("household_id", mcp.Description("Filter by household ID")),
+			mcp.WithString("user_uid", mcp.Description("Filter by user ID")),
+			mcp.WithString("household_uid", mcp.Description("Filter by household ID")),
 			mcp.WithNumber("priority", mcp.Description("Filter by priority level")),
 			mcp.WithString("tags", mcp.Description("Filter by tags (comma-separated)")),
 			mcp.WithBoolean("completed_only", mcp.Description("Show only completed todos")),
@@ -147,8 +182,8 @@ func (h *MCPHandlers) setupTools() {
 			mcp.WithDescription("Save a note with a key for later retrieval"),
 			mcp.WithString("key", mcp.Required(), mcp.Description("Unique key for the note")),
 			mcp.WithString("data", mcp.Required(), mcp.Description("Structured note content")),
-			mcp.WithString("user_id", mcp.Description("User ID")),
-			mcp.WithString("household_id", mcp.Description("Household ID")),
+			mcp.WithString("user_uid", mcp.Description("User ID")),
+			mcp.WithString("household_uid", mcp.Description("Household ID")),
 			mcp.WithString("tags", mcp.Description("Comma-separated tags")),
 		),
 		mcp.NewTool("recall_note",
@@ -158,8 +193,8 @@ func (h *MCPHandlers) setupTools() {
 		mcp.NewTool("list_notes",
 			mcp.WithDescription("List notes with optional filtering"),
 			mcp.WithString("key", mcp.Description("Filter by key")),
-			mcp.WithString("user_id", mcp.Description("Filter by user ID")),
-			mcp.WithString("household_id", mcp.Description("Filter by household ID")),
+			mcp.WithString("user_uid", mcp.Description("Filter by user ID")),
+			mcp.WithString("household_uid", mcp.Description("Filter by household ID")),
 			mcp.WithString("tags", mcp.Description("Filter by tags (comma-separated)")),
 			mcp.WithNumber("limit", mcp.Description("Maximum number of results (default 20)")),
 		),
@@ -186,8 +221,8 @@ func (h *MCPHandlers) setupTools() {
 			mcp.WithNumber("servings", mcp.Description("Number of servings")),
 			mcp.WithNumber("difficulty", mcp.Description("Difficulty level 1-5")),
 			mcp.WithNumber("rating", mcp.Description("Rating 1-5")),
-			mcp.WithString("user_id", mcp.Description("User ID")),
-			mcp.WithString("household_id", mcp.Description("Household ID")),
+			mcp.WithString("user_uid", mcp.Description("User ID")),
+			mcp.WithString("household_uid", mcp.Description("Household ID")),
 			mcp.WithString("tags", mcp.Description("Comma-separated tags")),
 		),
 		mcp.NewTool("find_recipes",
@@ -197,19 +232,35 @@ func (h *MCPHandlers) setupTools() {
 			mcp.WithNumber("max_cook_time", mcp.Description("Maximum cook time in minutes")),
 			mcp.WithNumber("min_rating", mcp.Description("Minimum rating")),
 			mcp.WithString("tags", mcp.Description("Comma-separated tags to filter by")),
-			mcp.WithString("user_id", mcp.Description("Filter by user ID")),
-			mcp.WithString("household_id", mcp.Description("Filter by household ID")),
+			mcp.WithString("user_uid", mcp.Description("Filter by user ID")),
+			mcp.WithString("household_uid", mcp.Description("Filter by household ID")),
 			mcp.WithNumber("limit", mcp.Description("Maximum number of results (default 20)")),
 		),
 		mcp.NewTool("get_recipe",
 			mcp.WithDescription("Get a specific recipe by ID"),
 			mcp.WithString("recipe_id", mcp.Required(), mcp.Description("Recipe ID")),
 		),
+		mcp.NewTool("update_user_description",
+			mcp.WithDescription("Update a user's description"),
+			mcp.WithString("user_uid", mcp.Required(), mcp.Description("User ID")),
+			mcp.WithString("description", mcp.Required(), mcp.Description("New description for the user")),
+		),
+		mcp.NewTool("update_household_description",
+			mcp.WithDescription("Update a household's description"),
+			mcp.WithString("household_uid", mcp.Required(), mcp.Description("Household ID")),
+			mcp.WithString("description", mcp.Required(), mcp.Description("New description for the household")),
+		),
 	}
 }
 
 func (h *MCPHandlers) handleInitialize(ctx context.Context, params InitializeParams) InitializeResult {
 	h.clientInfo = &params.ClientInfo
+
+	h.log().Info("MCP client initialized",
+		slog.String("client_name", params.ClientInfo.Name),
+		slog.String("client_version", params.ClientInfo.Version),
+		slog.String("protocol_version", params.ProtocolVersion),
+	)
 
 	return InitializeResult{
 		ProtocolVersion: "2024-11-05",
@@ -220,12 +271,15 @@ func (h *MCPHandlers) handleInitialize(ctx context.Context, params InitializePar
 }
 
 func (h *MCPHandlers) handleInitialized(ctx context.Context) {
-	// Initialization complete - server is ready to handle requests
+	h.log().Info("MCP server ready to handle requests")
 }
 
 func (h *MCPHandlers) handleCreateTodo(ctx context.Context, arguments map[string]any) mcp.CallToolResult {
+	h.log().Debug("Creating todo", slog.Any("arguments", arguments))
+
 	title, ok := arguments["title"].(string)
 	if !ok || title == "" {
+		h.log().Warn("Create todo failed: missing title", slog.Any("arguments", arguments))
 		return mcp.CallToolResult{
 			IsError: true,
 			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: "Error: title is required"}},
@@ -240,8 +294,8 @@ func (h *MCPHandlers) handleCreateTodo(ctx context.Context, arguments map[string
 	}
 
 	description, _ := arguments["description"].(string)
-	userID, _ := arguments["user_id"].(string)
-	householdID, _ := arguments["household_id"].(string)
+	userUID, _ := arguments["user_uid"].(string)
+	householdUID, _ := arguments["household_uid"].(string)
 
 	var dueDate *time.Time
 	if dueDateStr, ok := arguments["due_date"].(string); ok && dueDateStr != "" {
@@ -251,23 +305,34 @@ func (h *MCPHandlers) handleCreateTodo(ctx context.Context, arguments map[string
 	}
 
 	todo := dao.Todo{
-		UID:         uuid.NewString(),
-		Title:       title,
-		Description: description,
-		Data:        "{}",
-		Priority:    dao.Priority(priority),
-		DueDate:     dueDate,
-		UserID:      userID,
-		HouseholdID: householdID,
+		UID:          uuid.NewString(),
+		Title:        title,
+		Description:  description,
+		Data:         "{}",
+		Priority:     dao.Priority(priority),
+		DueDate:      dueDate,
+		UserUID:      &userUID,
+		HouseholdUID: &householdUID,
 	}
 
 	created, err := h.todoDAO.CreateTodo(ctx, todo)
 	if err != nil {
+		h.log().Error("Failed to create todo",
+			slog.String("error", err.Error()),
+			slog.String("title", title),
+			slog.String("user_uid", userUID),
+			slog.String("household_uid", householdUID),
+		)
 		return mcp.CallToolResult{
 			IsError: true,
 			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Error: Failed to create todo: %v", err)}},
 		}
 	}
+
+	h.log().Info("Todo created successfully",
+		slog.String("todo_id", created.UID),
+		slog.String("title", created.Title),
+	)
 
 	return mcp.CallToolResult{
 		Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Todo created successfully with ID: %s", created.UID)}},
@@ -275,6 +340,8 @@ func (h *MCPHandlers) handleCreateTodo(ctx context.Context, arguments map[string
 }
 
 func (h *MCPHandlers) handleListTodos(ctx context.Context, arguments map[string]any) mcp.CallToolResult {
+	h.log().Debug("Listing todos", slog.Any("arguments", arguments))
+
 	limit := 20
 	if l, ok := arguments["limit"].(float64); ok && l > 0 {
 		limit = int(l)
@@ -294,11 +361,20 @@ func (h *MCPHandlers) handleListTodos(ctx context.Context, arguments map[string]
 
 	todos, err := h.todoDAO.ListTodos(ctx, options)
 	if err != nil {
+		h.log().Error("Failed to list todos",
+			slog.String("error", err.Error()),
+			slog.Any("filters", filters),
+		)
 		return mcp.CallToolResult{
 			IsError: true,
 			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Error: Failed to list todos: %v", err)}},
 		}
 	}
+
+	h.log().Info("Listed todos successfully",
+		slog.Int("count", len(todos)),
+		slog.Int("limit", limit),
+	)
 
 	result, _ := json.Marshal(todos)
 	return mcp.CallToolResult{
@@ -307,8 +383,11 @@ func (h *MCPHandlers) handleListTodos(ctx context.Context, arguments map[string]
 }
 
 func (h *MCPHandlers) handleCompleteTodo(ctx context.Context, arguments map[string]any) mcp.CallToolResult {
+	h.log().Debug("Completing todo", slog.Any("arguments", arguments))
+
 	todoID, ok := arguments["todo_id"].(string)
 	if !ok || todoID == "" {
+		h.log().Warn("Complete todo failed: missing todo_id", slog.Any("arguments", arguments))
 		return mcp.CallToolResult{
 			IsError: true,
 			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: "Error: todo_id is required"}},
@@ -317,8 +396,9 @@ func (h *MCPHandlers) handleCompleteTodo(ctx context.Context, arguments map[stri
 
 	completedBy, _ := arguments["completed_by"].(string)
 
+	now := time.Now()
 	update := dao.UpdateTodo{
-		MarkedComplete: &[]string{"true"}[0],
+		MarkedComplete: &now,
 	}
 	if completedBy != "" {
 		update.CompletedBy = &completedBy
@@ -326,11 +406,21 @@ func (h *MCPHandlers) handleCompleteTodo(ctx context.Context, arguments map[stri
 
 	_, err := h.todoDAO.UpdateTodo(ctx, todoID, update)
 	if err != nil {
+		h.log().Error("Failed to complete todo",
+			slog.String("error", err.Error()),
+			slog.String("todo_id", todoID),
+			slog.String("completed_by", completedBy),
+		)
 		return mcp.CallToolResult{
 			IsError: true,
 			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Error: Failed to complete todo: %v", err)}},
 		}
 	}
+
+	h.log().Info("Todo completed successfully",
+		slog.String("todo_id", todoID),
+		slog.String("completed_by", completedBy),
+	)
 
 	return mcp.CallToolResult{
 		Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Todo %s marked as completed", todoID)}},
@@ -354,8 +444,8 @@ func (h *MCPHandlers) handleSaveNote(ctx context.Context, arguments map[string]a
 		}
 	}
 
-	userID, _ := arguments["user_id"].(string)
-	householdID, _ := arguments["household_id"].(string)
+	userUID, _ := arguments["user_uid"].(string)
+	householdUID, _ := arguments["household_uid"].(string)
 	tagsStr, _ := arguments["tags"].(string)
 
 	var tags []string
@@ -367,12 +457,12 @@ func (h *MCPHandlers) handleSaveNote(ctx context.Context, arguments map[string]a
 	}
 
 	note := dao.Notes{
-		ID:          uuid.NewString(),
-		Key:         key,
-		UserID:      userID,
-		HouseholdID: householdID,
-		Data:        data,
-		Tags:        tags,
+		ID:           uuid.NewString(),
+		Key:          key,
+		UserUID:      &userUID,
+		HouseholdUID: &householdUID,
+		Data:         data,
+		Tags:         tags,
 	}
 
 	created, err := h.notesDAO.CreateNotes(ctx, note)
@@ -559,8 +649,8 @@ func (h *MCPHandlers) handleSaveRecipe(ctx context.Context, arguments map[string
 
 	genre, _ := arguments["genre"].(string)
 	groceryList, _ := arguments["grocery_list"].(string)
-	userID, _ := arguments["user_id"].(string)
-	householdID, _ := arguments["household_id"].(string)
+	userUID, _ := arguments["user_uid"].(string)
+	householdUID, _ := arguments["household_uid"].(string)
 	tagsStr, _ := arguments["tags"].(string)
 
 	var tags []string
@@ -610,20 +700,20 @@ func (h *MCPHandlers) handleSaveRecipe(ctx context.Context, arguments map[string
 	}
 
 	recipe := dao.Recipes{
-		ID:          uuid.NewString(),
-		Title:       title,
-		Data:        data,
-		Genre:       genrePtr,
-		GroceryList: groceryListPtr,
-		PrepTime:    prepTime,
-		CookTime:    cookTime,
-		TotalTime:   totalTimePtr,
-		Servings:    servings,
-		Difficulty:  difficultyPtr,
-		Rating:      rating,
-		Tags:        tags,
-		UserID:      userID,
-		HouseholdID: householdID,
+		ID:           uuid.NewString(),
+		Title:        title,
+		Data:         data,
+		Genre:        genrePtr,
+		GroceryList:  groceryListPtr,
+		PrepTime:     prepTime,
+		CookTime:     cookTime,
+		TotalTime:    totalTimePtr,
+		Servings:     servings,
+		Difficulty:   difficultyPtr,
+		Rating:       rating,
+		Tags:         tags,
+		UserUID:      &userUID,
+		HouseholdUID: &householdUID,
 	}
 
 	created, err := h.recipesDAO.CreateRecipes(ctx, recipe)
@@ -700,7 +790,90 @@ func (h *MCPHandlers) handleGetRecipe(ctx context.Context, arguments map[string]
 	}
 }
 
+func (h *MCPHandlers) handleUpdateUserDescription(ctx context.Context, arguments map[string]any) mcp.CallToolResult {
+	userUID, ok := arguments["user_uid"].(string)
+	if !ok || userUID == "" {
+		return mcp.CallToolResult{
+			IsError: true,
+			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: "Error: user_uid is required"}},
+		}
+	}
+
+	description, ok := arguments["description"].(string)
+	if !ok {
+		return mcp.CallToolResult{
+			IsError: true,
+			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: "Error: description is required"}},
+		}
+	}
+
+	update := dao.UpdateUser{
+		Description: &description,
+	}
+
+	updatedUser, err := h.userDAO.UpdateUser(ctx, userUID, update)
+	if err != nil {
+		return mcp.CallToolResult{
+			IsError: true,
+			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Error: Failed to update user description: %v", err)}},
+		}
+	}
+
+	result, _ := json.Marshal(updatedUser)
+	return mcp.CallToolResult{
+		Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("User description updated successfully: %s", string(result))}},
+	}
+}
+
+func (h *MCPHandlers) handleUpdateHouseholdDescription(ctx context.Context, arguments map[string]any) mcp.CallToolResult {
+	householdUID, ok := arguments["household_uid"].(string)
+	if !ok || householdUID == "" {
+		return mcp.CallToolResult{
+			IsError: true,
+			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: "Error: household_uid is required"}},
+		}
+	}
+
+	description, ok := arguments["description"].(string)
+	if !ok {
+		return mcp.CallToolResult{
+			IsError: true,
+			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: "Error: description is required"}},
+		}
+	}
+
+	update := dao.UpdateHousehold{
+		Description: &description,
+	}
+
+	updatedHousehold, err := h.householdDAO.UpdateHousehold(ctx, householdUID, update)
+	if err != nil {
+		return mcp.CallToolResult{
+			IsError: true,
+			Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Error: Failed to update household description: %v", err)}},
+		}
+	}
+
+	result, _ := json.Marshal(updatedHousehold)
+	return mcp.CallToolResult{
+		Content: []mcp.Content{mcp.TextContent{Type: "text", Text: fmt.Sprintf("Household description updated successfully: %s", string(result))}},
+	}
+}
+
 func (h *MCPHandlers) callTool(ctx context.Context, name string, arguments map[string]any) mcp.CallToolResult {
+	h.log().Info("Calling MCP tool",
+		slog.String("tool_name", name),
+		slog.Any("arguments", arguments),
+	)
+
+	start := time.Now()
+	defer func() {
+		h.log().Debug("Tool execution completed",
+			slog.String("tool_name", name),
+			slog.Duration("duration", time.Since(start)),
+		)
+	}()
+
 	switch name {
 	case "create_todo":
 		return h.handleCreateTodo(ctx, arguments)
@@ -724,6 +897,10 @@ func (h *MCPHandlers) callTool(ctx context.Context, name string, arguments map[s
 		return h.handleFindRecipes(ctx, arguments)
 	case "get_recipe":
 		return h.handleGetRecipe(ctx, arguments)
+	case "update_user_description":
+		return h.handleUpdateUserDescription(ctx, arguments)
+	case "update_household_description":
+		return h.handleUpdateHouseholdDescription(ctx, arguments)
 	default:
 		return mcp.CallToolResult{
 			IsError: true,
@@ -735,9 +912,19 @@ func (h *MCPHandlers) callTool(ctx context.Context, name string, arguments map[s
 func (h *MCPHandlers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var req JSONRPCRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.log().Error("Invalid JSON-RPC request",
+			slog.String("error", err.Error()),
+			slog.String("remote_addr", r.RemoteAddr),
+		)
 		http.Error(w, "Invalid JSON-RPC request", http.StatusBadRequest)
 		return
 	}
+
+	h.log().Debug("Received JSON-RPC request",
+		slog.String("method", req.Method),
+		slog.Any("id", req.ID),
+		slog.String("remote_addr", r.RemoteAddr),
+	)
 
 	var response JSONRPCResponse
 	response.JSONRPC = "2.0"
@@ -803,15 +990,36 @@ func (h *MCPHandlers) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	default:
+		h.log().Warn("Unknown JSON-RPC method",
+			slog.String("method", req.Method),
+			slog.Any("id", req.ID),
+		)
 		response.Error = map[string]any{"code": -32601, "message": "Method not found"}
 	}
 
+	if response.Error != nil {
+		h.log().Error("JSON-RPC request failed",
+			slog.String("method", req.Method),
+			slog.Any("id", req.ID),
+			slog.Any("error", response.Error),
+		)
+	} else {
+		h.log().Debug("JSON-RPC request completed successfully",
+			slog.String("method", req.Method),
+			slog.Any("id", req.ID),
+		)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.log().Error("Failed to encode JSON-RPC response",
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
-func NewMCPRouter(todoDAO todoDAO, notesDAO notesDAO, preferencesDAO preferencesDAO, recipesDAO recipesDAO) http.Handler {
-	h := NewMCP(todoDAO, notesDAO, preferencesDAO, recipesDAO)
+func NewMCPRouter(todoDAO todoDAO, notesDAO notesDAO, preferencesDAO preferencesDAO, recipesDAO recipesDAO, userDAO userDAO, householdDAO householdDAO) http.Handler {
+	h := NewMCP(todoDAO, notesDAO, preferencesDAO, recipesDAO, userDAO, householdDAO)
 
 	r := chi.NewRouter()
 	r.Post("/", h.ServeHTTP)

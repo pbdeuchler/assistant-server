@@ -35,15 +35,15 @@ func NewTodos(dao todoDAO) http.Handler {
 }
 
 type createTodoRequest struct {
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Data        string `json:"data"`
-	Priority    int    `json:"priority"`
-	DueDate     string `json:"due_date"`
-	RecursOn    string `json:"recurs_on"`
-	ExternalURL string `json:"external_url"`
-	UserID      string `json:"user_id"`
-	HouseholdID string `json:"household_id"`
+	Title        string `json:"title"`
+	Description  string `json:"description"`
+	Data         string `json:"data"`
+	Priority     int    `json:"priority"`
+	DueDate      string `json:"due_date"`
+	RecursOn     string `json:"recurs_on"`
+	ExternalURL  string `json:"external_url"`
+	UserUID      string `json:"user_uid"`
+	HouseholdUID string `json:"household_uid"`
 }
 
 func (h *todoHandlers) create(w http.ResponseWriter, r *http.Request) {
@@ -85,16 +85,16 @@ func (h *todoHandlers) create(w http.ResponseWriter, r *http.Request) {
 
 	priority := dao.Priority(todoReq.Priority)
 	t := dao.Todo{
-		Title:       todoReq.Title,
-		Description: todoReq.Description,
-		Data:        todoReq.Data,
-		Priority:    priority,
-		DueDate:     dueDate,
-		RecursOn:    todoReq.RecursOn,
-		ExternalURL: todoReq.ExternalURL,
-		UserID:      todoReq.UserID,
-		HouseholdID: todoReq.HouseholdID,
-		UID:         uuid.NewString(),
+		Title:        todoReq.Title,
+		Description:  todoReq.Description,
+		Data:         todoReq.Data,
+		Priority:     priority,
+		DueDate:      dueDate,
+		RecursOn:     todoReq.RecursOn,
+		ExternalURL:  todoReq.ExternalURL,
+		UserUID:      &todoReq.UserUID,
+		HouseholdUID: &todoReq.HouseholdUID,
+		UID:          uuid.NewString(),
 	}
 	out, err := h.dao.CreateTodo(r.Context(), t)
 	if err != nil {

@@ -42,7 +42,7 @@ func Serve(ctx context.Context, cfg Config) error {
 	r.Mount("/notes", service.NewNotes(db))
 	r.Mount("/recipes", service.NewRecipes(db))
 	r.Mount("/bootstrap", service.NewBootstrap(db))
-	r.Mount("/mcp", service.NewMCPRouter(db, db, db, db))
+	r.Mount("/mcp", service.NewMCPRouter(db, db, db, db, db, db))
 
 	addr := fmt.Sprintf("0.0.0.0:%s", cfg.Port)
 	log.Printf("Starting server on %s", addr)

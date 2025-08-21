@@ -29,8 +29,8 @@ type Todo struct {
 	RecursOn       string     `json:"recurs_on" db:"recurs_on"`
 	MarkedComplete *time.Time `json:"marked_complete" db:"marked_complete"`
 	ExternalURL    string     `json:"external_url" db:"external_url"`
-	UserID         string     `json:"user_id" db:"user_id"`
-	HouseholdID    string     `json:"household_id" db:"household_id"`
+	UserUID        *string    `json:"user_uid" db:"user_uid"`
+	HouseholdUID   *string    `json:"household_uid" db:"household_uid"`
 	CompletedBy    string     `json:"completed_by" db:"completed_by"`
 	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
@@ -53,19 +53,19 @@ type Preferences struct {
 }
 
 type Notes struct {
-	ID          string    `json:"id" db:"id"`
-	Key         string    `json:"key" db:"key"`
-	UserID      string    `json:"user_id" db:"user_id"`
-	HouseholdID string    `json:"household_id" db:"household_id"`
-	Data        string    `json:"data" db:"data"`
-	Tags        []string  `json:"tags" db:"tags"`
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	ID           string    `json:"id" db:"id"`
+	Key          string    `json:"key" db:"key"`
+	UserUID      *string   `json:"user_uid" db:"user_uid"`
+	HouseholdUID *string   `json:"household_uid" db:"household_uid"`
+	Data         string    `json:"data" db:"data"`
+	Tags         []string  `json:"tags" db:"tags"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
 }
 
 type Credentials struct {
 	ID             string          `json:"id" db:"id"`
-	UserID         string          `json:"user_id" db:"user_id"`
+	UserUID        string          `json:"user_uid" db:"user_uid"`
 	CredentialType string          `json:"credential_type" db:"credential_type"`
 	Value          json.RawMessage `json:"value" db:"value"`
 	CreatedAt      time.Time       `json:"created_at" db:"created_at"`
@@ -73,19 +73,32 @@ type Credentials struct {
 }
 
 type SlackUsers struct {
-	SlackUserID string    `json:"slack_user_id" db:"slack_user_id"`
-	UserID      string    `json:"user_id" db:"user_id"`
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	SlackUserUID string    `json:"slack_user_uid" db:"slack_user_uid"`
+	UserUID      string    `json:"user_uid" db:"user_uid"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
 }
 
 type Users struct {
-	UID         string    `json:"uid" db:"uid"`
-	Name        string    `json:"name" db:"name"`
-	Email       string    `json:"email" db:"email"`
-	Description string    `json:"description" db:"description"`
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	UID          string    `json:"uid" db:"uid"`
+	Name         string    `json:"name" db:"name"`
+	Email        string    `json:"email" db:"email"`
+	Description  string    `json:"description" db:"description"`
+	HouseholdUID *string   `json:"household_uid" db:"household_uid"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
+}
+
+type UpdateUser struct {
+	Name         *string `json:"name"`
+	Email        *string `json:"email"`
+	Description  *string `json:"description"`
+	HouseholdUID *string `json:"household_uid"`
+}
+
+type UpdateHousehold struct {
+	Name        *string `json:"name"`
+	Description *string `json:"description"`
 }
 
 type Households struct {
@@ -97,23 +110,23 @@ type Households struct {
 }
 
 type Recipes struct {
-	ID          string    `json:"id" db:"id"`
-	Title       string    `json:"title" db:"title"`
-	ExternalURL *string   `json:"external_url" db:"external_url"`
-	Data        string    `json:"data" db:"data"`
-	Genre       *string   `json:"genre" db:"genre"`
-	GroceryList *string   `json:"grocery_list" db:"grocery_list"`
-	PrepTime    *int      `json:"prep_time" db:"prep_time"`
-	CookTime    *int      `json:"cook_time" db:"cook_time"`
-	TotalTime   *int      `json:"total_time" db:"total_time"`
-	Servings    *int      `json:"servings" db:"servings"`
-	Difficulty  *string   `json:"difficulty" db:"difficulty"`
-	Rating      *int      `json:"rating" db:"rating"`
-	Tags        []string  `json:"tags" db:"tags"`
-	UserID      string    `json:"user_id" db:"user_id"`
-	HouseholdID string    `json:"household_id" db:"household_id"`
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+	ID           string    `json:"id" db:"id"`
+	Title        string    `json:"title" db:"title"`
+	ExternalURL  *string   `json:"external_url" db:"external_url"`
+	Data         string    `json:"data" db:"data"`
+	Genre        *string   `json:"genre" db:"genre"`
+	GroceryList  *string   `json:"grocery_list" db:"grocery_list"`
+	PrepTime     *int      `json:"prep_time" db:"prep_time"`
+	CookTime     *int      `json:"cook_time" db:"cook_time"`
+	TotalTime    *int      `json:"total_time" db:"total_time"`
+	Servings     *int      `json:"servings" db:"servings"`
+	Difficulty   *string   `json:"difficulty" db:"difficulty"`
+	Rating       *int      `json:"rating" db:"rating"`
+	Tags         []string  `json:"tags" db:"tags"`
+	UserUID      *string   `json:"user_uid" db:"user_uid"`
+	HouseholdUID *string   `json:"household_uid" db:"household_uid"`
+	CreatedAt    time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
 }
 
 type ListOptions struct {
@@ -137,10 +150,26 @@ func New(ctx context.Context, pool queryer) (*DAO, error) {
 	return &DAO{pool}, nil
 }
 
+func handleUIDRefs(userUID, householdUID *string) (*string, *string) {
+	var userUIDPtr *string
+	if userUID != nil && *userUID != "" {
+		userUIDPtr = userUID
+	}
+
+	var householdUIDPtr *string
+	if householdUID != nil && *householdUID != "" {
+		householdUIDPtr = householdUID
+	}
+
+	return userUIDPtr, householdUIDPtr
+}
+
 func (d *DAO) CreateTodo(ctx context.Context, t Todo) (Todo, error) {
+	userUID, householdUID := handleUIDRefs(t.UserUID, t.HouseholdUID)
+
 	row := d.pool.QueryRow(ctx, insertTodo,
-		t.UID, t.Title, t.Description, t.Data, t.Priority, t.DueDate,
-		t.RecursOn, t.MarkedComplete, t.ExternalURL, t.UserID, t.HouseholdID, t.CompletedBy,
+		t.Title, t.Description, t.Data, t.Priority, t.DueDate,
+		t.RecursOn, t.MarkedComplete, t.ExternalURL, userUID, householdUID, t.CompletedBy,
 	)
 	return scanTodo(row)
 }
@@ -150,14 +179,15 @@ func (d *DAO) GetTodo(ctx context.Context, uid string) (Todo, error) {
 }
 
 func (d *DAO) ListTodos(ctx context.Context, options ListOptions) ([]Todo, error) {
-	query := buildListQuery("todos", options)
+	todoColumns := "uid, title, description, data, priority, due_date, recurs_on, marked_complete, external_url, user_uid, household_uid, completed_by, created_at, updated_at"
+	query := buildListQuery("todos", todoColumns, options)
 	args := append(options.WhereArgs, options.Limit, options.Offset)
 	rows, err := d.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Todo
+	out := []Todo{}
 	for rows.Next() {
 		t, err := scanTodo(rows)
 		if err != nil {
@@ -169,15 +199,15 @@ func (d *DAO) ListTodos(ctx context.Context, options ListOptions) ([]Todo, error
 }
 
 type UpdateTodo struct {
-	Title          *string `json:"title"`
-	Description    *string `json:"description"`
-	Data           *string `json:"data"`
-	Priority       *int    `json:"priority"`
-	DueDate        *string `json:"due_date"`
-	RecursOn       *string `json:"recurs_on"`
-	ExternalURL    *string `json:"external_url"`
-	CompletedBy    *string `json:"completed_by"`
-	MarkedComplete *string `json:"marked_complete"`
+	Title          *string    `json:"title"`
+	Description    *string    `json:"description"`
+	Data           *string    `json:"data"`
+	Priority       *int       `json:"priority"`
+	DueDate        *time.Time `json:"due_date"`
+	RecursOn       *string    `json:"recurs_on"`
+	ExternalURL    *string    `json:"external_url"`
+	CompletedBy    *string    `json:"completed_by"`
+	MarkedComplete *time.Time `json:"marked_complete"`
 }
 
 func (d *DAO) UpdateTodo(ctx context.Context, uid string, t UpdateTodo) (Todo, error) {
@@ -202,7 +232,8 @@ func (d *DAO) GetBackground(ctx context.Context, key string) (Background, error)
 }
 
 func (d *DAO) ListBackgrounds(ctx context.Context, options ListOptions) ([]Background, error) {
-	query := buildListQuery("backgrounds", options)
+	backgroundColumns := "*"
+	query := buildListQuery("backgrounds", backgroundColumns, options)
 	args := append(options.WhereArgs, options.Limit, options.Offset)
 	rows, err := d.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -240,7 +271,8 @@ func (d *DAO) GetPreferences(ctx context.Context, key, specifier string) (Prefer
 }
 
 func (d *DAO) ListPreferences(ctx context.Context, options ListOptions) ([]Preferences, error) {
-	query := buildListQuery("preferences", options)
+	preferencesColumns := "key, specifier, data, created_at, updated_at, tags"
+	query := buildListQuery("preferences", preferencesColumns, options)
 	args := append(options.WhereArgs, options.Limit, options.Offset)
 	rows, err := d.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -269,7 +301,8 @@ func (d *DAO) DeletePreferences(ctx context.Context, key, specifier string) erro
 }
 
 func (d *DAO) CreateNotes(ctx context.Context, n Notes) (Notes, error) {
-	row := d.pool.QueryRow(ctx, insertNotes, n.ID, n.Key, n.UserID, n.HouseholdID, n.Data, n.Tags)
+	userUID, householdUID := handleUIDRefs(n.UserUID, n.HouseholdUID)
+	row := d.pool.QueryRow(ctx, insertNotes, n.Key, userUID, householdUID, n.Data, n.Tags)
 	return scanNotes(row)
 }
 
@@ -278,7 +311,8 @@ func (d *DAO) GetNotes(ctx context.Context, id string) (Notes, error) {
 }
 
 func (d *DAO) ListNotes(ctx context.Context, options ListOptions) ([]Notes, error) {
-	query := buildListQuery("notes", options)
+	notesColumns := "id, key, data, created_at, updated_at, user_uid, household_uid, tags"
+	query := buildListQuery("notes", notesColumns, options)
 	args := append(options.WhereArgs, options.Limit, options.Offset)
 	rows, err := d.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -297,7 +331,7 @@ func (d *DAO) ListNotes(ctx context.Context, options ListOptions) ([]Notes, erro
 }
 
 func (d *DAO) UpdateNotes(ctx context.Context, id string, n Notes) (Notes, error) {
-	row := d.pool.QueryRow(ctx, updateNotes, id, n.Key, n.UserID, n.HouseholdID, n.Data, n.Tags)
+	row := d.pool.QueryRow(ctx, updateNotes, id, n.Key, n.UserUID, n.HouseholdUID, n.Data, n.Tags)
 	return scanNotes(row)
 }
 
@@ -307,7 +341,7 @@ func (d *DAO) DeleteNotes(ctx context.Context, id string) error {
 }
 
 func (d *DAO) CreateCredentials(ctx context.Context, c Credentials) (Credentials, error) {
-	row := d.pool.QueryRow(ctx, insertCredentials, c.ID, c.UserID, c.CredentialType, c.Value)
+	row := d.pool.QueryRow(ctx, insertCredentials, c.UserUID, c.CredentialType, c.Value)
 	return scanCredentials(row)
 }
 
@@ -320,7 +354,8 @@ func (d *DAO) GetCredentialsByUserAndType(ctx context.Context, userID, credentia
 }
 
 func (d *DAO) ListCredentials(ctx context.Context, options ListOptions) ([]Credentials, error) {
-	query := buildListQuery("credentials", options)
+	credentialsColumns := "*"
+	query := buildListQuery("credentials", credentialsColumns, options)
 	args := append(options.WhereArgs, options.Limit, options.Offset)
 	rows, err := d.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -339,7 +374,7 @@ func (d *DAO) ListCredentials(ctx context.Context, options ListOptions) ([]Crede
 }
 
 func (d *DAO) UpdateCredentials(ctx context.Context, id string, c Credentials) (Credentials, error) {
-	row := d.pool.QueryRow(ctx, updateCredentials, id, c.UserID, c.CredentialType, c.Value)
+	row := d.pool.QueryRow(ctx, updateCredentials, id, c.UserUID, c.CredentialType, c.Value)
 	return scanCredentials(row)
 }
 
@@ -348,16 +383,16 @@ func (d *DAO) DeleteCredentials(ctx context.Context, id string) error {
 	return err
 }
 
-func (d *DAO) GetSlackUser(ctx context.Context, slackUserID string) (SlackUsers, error) {
-	return scanSlackUser(d.pool.QueryRow(ctx, getSlackUser, slackUserID))
+func (d *DAO) GetSlackUser(ctx context.Context, slackUserUID string) (SlackUsers, error) {
+	return scanSlackUser(d.pool.QueryRow(ctx, getSlackUser, slackUserUID))
 }
 
-func (d *DAO) GetUserBySlackUserID(ctx context.Context, slackUserID string) (Users, error) {
-	return scanUser(d.pool.QueryRow(ctx, getUserBySlackUserID, slackUserID))
+func (d *DAO) GetUserBySlackUserUID(ctx context.Context, slackUserUID string) (Users, error) {
+	return scanUser(d.pool.QueryRow(ctx, getUserBySlackUserUID, slackUserUID))
 }
 
-func (d *DAO) GetCredentialsByUserID(ctx context.Context, userID string) ([]Credentials, error) {
-	rows, err := d.pool.Query(ctx, getCredentialsByUserID, userID)
+func (d *DAO) GetCredentialsByUserUID(ctx context.Context, userUID string) ([]Credentials, error) {
+	rows, err := d.pool.Query(ctx, getCredentialsByUserUID, userUID)
 	if err != nil {
 		return nil, err
 	}
@@ -373,6 +408,16 @@ func (d *DAO) GetCredentialsByUserID(ctx context.Context, userID string) ([]Cred
 	return out, rows.Err()
 }
 
+func (d *DAO) CreateUser(ctx context.Context, u Users) (Users, error) {
+	row := d.pool.QueryRow(ctx, insertUser, u.Name, u.Email, u.Description, u.HouseholdUID)
+	return scanUser(row)
+}
+
+func (d *DAO) UpdateUser(ctx context.Context, uid string, u UpdateUser) (Users, error) {
+	row := d.pool.QueryRow(ctx, updateUser, uid, u.Name, u.Email, u.Description, u.HouseholdUID)
+	return scanUser(row)
+}
+
 func (d *DAO) GetUser(ctx context.Context, uid string) (Users, error) {
 	return scanUser(d.pool.QueryRow(ctx, getUser, uid))
 }
@@ -381,8 +426,13 @@ func (d *DAO) GetHousehold(ctx context.Context, uid string) (Households, error) 
 	return scanHousehold(d.pool.QueryRow(ctx, getHousehold, uid))
 }
 
-func (d *DAO) GetTodosByUserID(ctx context.Context, userID string) ([]Todo, error) {
-	rows, err := d.pool.Query(ctx, getTodosByUserID, userID)
+func (d *DAO) UpdateHousehold(ctx context.Context, uid string, h UpdateHousehold) (Households, error) {
+	row := d.pool.QueryRow(ctx, updateHousehold, uid, h.Name, h.Description)
+	return scanHousehold(row)
+}
+
+func (d *DAO) GetTodosByUserUID(ctx context.Context, userUID string) ([]Todo, error) {
+	rows, err := d.pool.Query(ctx, getTodosByUserUID, userUID)
 	if err != nil {
 		return nil, err
 	}
@@ -398,8 +448,8 @@ func (d *DAO) GetTodosByUserID(ctx context.Context, userID string) ([]Todo, erro
 	return out, rows.Err()
 }
 
-func (d *DAO) GetNotesByUserID(ctx context.Context, userID string) ([]Notes, error) {
-	rows, err := d.pool.Query(ctx, getNotesByUserID, userID)
+func (d *DAO) GetNotesByUserUID(ctx context.Context, userUID string) ([]Notes, error) {
+	rows, err := d.pool.Query(ctx, getNotesByUserUID, userUID)
 	if err != nil {
 		return nil, err
 	}
@@ -415,8 +465,8 @@ func (d *DAO) GetNotesByUserID(ctx context.Context, userID string) ([]Notes, err
 	return out, rows.Err()
 }
 
-func (d *DAO) GetPreferencesByUserID(ctx context.Context, userID string) ([]Preferences, error) {
-	rows, err := d.pool.Query(ctx, getPreferencesByUserID, userID)
+func (d *DAO) GetPreferencesByUserUID(ctx context.Context, userUID string) ([]Preferences, error) {
+	rows, err := d.pool.Query(ctx, getPreferencesByUserUID, userUID)
 	if err != nil {
 		return nil, err
 	}
@@ -433,7 +483,8 @@ func (d *DAO) GetPreferencesByUserID(ctx context.Context, userID string) ([]Pref
 }
 
 func (d *DAO) CreateRecipes(ctx context.Context, r Recipes) (Recipes, error) {
-	row := d.pool.QueryRow(ctx, insertRecipes, r.ID, r.Title, r.ExternalURL, r.Data, r.Genre, r.GroceryList, r.PrepTime, r.CookTime, r.TotalTime, r.Servings, r.Difficulty, r.Rating, r.Tags, r.UserID, r.HouseholdID)
+	userUID, householdUID := handleUIDRefs(r.UserUID, r.HouseholdUID)
+	row := d.pool.QueryRow(ctx, insertRecipes, r.Title, r.ExternalURL, r.Data, r.Genre, r.GroceryList, r.PrepTime, r.CookTime, r.TotalTime, r.Servings, r.Difficulty, r.Rating, r.Tags, userUID, householdUID)
 	return scanRecipes(row)
 }
 
@@ -442,7 +493,8 @@ func (d *DAO) GetRecipes(ctx context.Context, id string) (Recipes, error) {
 }
 
 func (d *DAO) ListRecipes(ctx context.Context, options ListOptions) ([]Recipes, error) {
-	query := buildListQuery("recipes", options)
+	recipesColumns := "id, title, external_url, data, genre, grocery_list, prep_time, cook_time, total_time, servings, difficulty, rating, tags, user_uid, household_uid, created_at, updated_at"
+	query := buildListQuery("recipes", recipesColumns, options)
 	args := append(options.WhereArgs, options.Limit, options.Offset)
 	rows, err := d.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -461,7 +513,7 @@ func (d *DAO) ListRecipes(ctx context.Context, options ListOptions) ([]Recipes, 
 }
 
 func (d *DAO) UpdateRecipes(ctx context.Context, id string, r Recipes) (Recipes, error) {
-	row := d.pool.QueryRow(ctx, updateRecipes, id, r.Title, r.ExternalURL, r.Data, r.Genre, r.GroceryList, r.PrepTime, r.CookTime, r.TotalTime, r.Servings, r.Difficulty, r.Rating, r.Tags, r.UserID, r.HouseholdID)
+	row := d.pool.QueryRow(ctx, updateRecipes, id, r.Title, r.ExternalURL, r.Data, r.Genre, r.GroceryList, r.PrepTime, r.CookTime, r.TotalTime, r.Servings, r.Difficulty, r.Rating, r.Tags, r.UserUID, r.HouseholdUID)
 	return scanRecipes(row)
 }
 
@@ -470,8 +522,8 @@ func (d *DAO) DeleteRecipes(ctx context.Context, id string) error {
 	return err
 }
 
-func (d *DAO) GetRecipesByUserID(ctx context.Context, userID string) ([]Recipes, error) {
-	rows, err := d.pool.Query(ctx, getRecipesByUserID, userID)
+func (d *DAO) GetRecipesByUserUID(ctx context.Context, userUID string) ([]Recipes, error) {
+	rows, err := d.pool.Query(ctx, getRecipesByUserUID, userUID)
 	if err != nil {
 		return nil, err
 	}
@@ -495,7 +547,7 @@ func scanTodo(s scannable) (Todo, error) {
 	var t Todo
 	err := s.Scan(&t.UID, &t.Title, &t.Description, &t.Data, &t.Priority,
 		&t.DueDate, &t.RecursOn, &t.MarkedComplete, &t.ExternalURL,
-		&t.UserID, &t.HouseholdID, &t.CompletedBy, &t.CreatedAt, &t.UpdatedAt)
+		&t.UserUID, &t.HouseholdUID, &t.CompletedBy, &t.CreatedAt, &t.UpdatedAt)
 	return t, err
 }
 
@@ -507,31 +559,31 @@ func scanBackground(s scannable) (Background, error) {
 
 func scanPreferences(s scannable) (Preferences, error) {
 	var p Preferences
-	err := s.Scan(&p.Key, &p.Specifier, &p.Data, &p.Tags, &p.CreatedAt, &p.UpdatedAt)
+	err := s.Scan(&p.Key, &p.Specifier, &p.Data, &p.CreatedAt, &p.UpdatedAt, &p.Tags)
 	return p, err
 }
 
 func scanNotes(s scannable) (Notes, error) {
 	var n Notes
-	err := s.Scan(&n.ID, &n.Key, &n.UserID, &n.HouseholdID, &n.Data, &n.Tags, &n.CreatedAt, &n.UpdatedAt)
+	err := s.Scan(&n.ID, &n.Key, &n.Data, &n.CreatedAt, &n.UpdatedAt, &n.UserUID, &n.HouseholdUID, &n.Tags)
 	return n, err
 }
 
 func scanCredentials(s scannable) (Credentials, error) {
 	var c Credentials
-	err := s.Scan(&c.ID, &c.UserID, &c.CredentialType, &c.Value, &c.CreatedAt, &c.UpdatedAt)
+	err := s.Scan(&c.ID, &c.UserUID, &c.CredentialType, &c.Value, &c.CreatedAt, &c.UpdatedAt)
 	return c, err
 }
 
 func scanSlackUser(s scannable) (SlackUsers, error) {
 	var su SlackUsers
-	err := s.Scan(&su.SlackUserID, &su.UserID, &su.CreatedAt, &su.UpdatedAt)
+	err := s.Scan(&su.SlackUserUID, &su.UserUID, &su.CreatedAt, &su.UpdatedAt)
 	return su, err
 }
 
 func scanUser(s scannable) (Users, error) {
 	var u Users
-	err := s.Scan(&u.UID, &u.Name, &u.Email, &u.Description, &u.CreatedAt, &u.UpdatedAt)
+	err := s.Scan(&u.UID, &u.Name, &u.Email, &u.Description, &u.CreatedAt, &u.UpdatedAt, &u.HouseholdUID)
 	return u, err
 }
 
@@ -543,12 +595,12 @@ func scanHousehold(s scannable) (Households, error) {
 
 func scanRecipes(s scannable) (Recipes, error) {
 	var r Recipes
-	err := s.Scan(&r.ID, &r.Title, &r.ExternalURL, &r.Data, &r.Genre, &r.GroceryList, &r.PrepTime, &r.CookTime, &r.TotalTime, &r.Servings, &r.Difficulty, &r.Rating, &r.Tags, &r.UserID, &r.HouseholdID, &r.CreatedAt, &r.UpdatedAt)
+	err := s.Scan(&r.ID, &r.Title, &r.ExternalURL, &r.Data, &r.Genre, &r.GroceryList, &r.PrepTime, &r.CookTime, &r.TotalTime, &r.Servings, &r.Difficulty, &r.Rating, &r.Tags, &r.UserUID, &r.HouseholdUID, &r.CreatedAt, &r.UpdatedAt)
 	return r, err
 }
 
-func buildListQuery(tableName string, options ListOptions) string {
-	query := fmt.Sprintf("SELECT * FROM %s", tableName)
+func buildListQuery(tableName string, columns string, options ListOptions) string {
+	query := fmt.Sprintf("SELECT %s FROM %s", columns, tableName)
 
 	if options.WhereClause != "" {
 		query += " " + options.WhereClause

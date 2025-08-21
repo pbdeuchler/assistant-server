@@ -28,8 +28,8 @@ func TestTodoCreate(t *testing.T) {
 		DueDate:     nil,
 		RecursOn:    "",
 		ExternalURL: "",
-		UserID:      "user-123",
-		HouseholdID: "household-456",
+		UserUID:      "user-123",
+		HouseholdUID: "household-456",
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
@@ -40,8 +40,8 @@ func TestTodoCreate(t *testing.T) {
 			return t.Title == "Test Todo" && 
 				   t.Description == "Test Description" &&
 				   t.Priority == postgres.PriorityMedium &&
-				   t.UserID == "user-123" &&
-				   t.HouseholdID == "household-456"
+				   t.UserUID == "user-123" &&
+				   t.HouseholdUID == "household-456"
 		})).Return(expectedTodo, nil)
 
 	handler := NewTodos(mockTodoDAO)
@@ -51,8 +51,8 @@ func TestTodoCreate(t *testing.T) {
 		"description": "Test Description",
 		"data": "{}",
 		"priority": 2,
-		"user_id": "user-123",
-		"household_id": "household-456"
+		"user_uid": "user-123",
+		"household_uid": "household-456"
 	}`
 
 	req := httptest.NewRequest("POST", "/", strings.NewReader(reqBody))
@@ -333,8 +333,8 @@ func TestTodoCreateError(t *testing.T) {
 		"title": "Test Todo",
 		"description": "Test Description",
 		"priority": 2,
-		"user_id": "user-123",
-		"household_id": "household-456"
+		"user_uid": "user-123",
+		"household_uid": "household-456"
 	}`
 
 	req := httptest.NewRequest("POST", "/", strings.NewReader(reqBody))

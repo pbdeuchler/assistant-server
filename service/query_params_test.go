@@ -189,15 +189,15 @@ func TestBuildFiltersFromMCP(t *testing.T) {
 		{
 			name: "basic string filters",
 			arguments: map[string]any{
-				"user_id":      "user123",
-				"household_id": "house456",
+				"user_uid":      "user123",
+				"household_uid": "house456",
 				"priority":     float64(3),
 				"tags":         "urgent,work",
 			},
-			supportedFilters: []string{"user_id", "household_id", "priority", "tags"},
+			supportedFilters: []string{"user_uid", "household_uid", "priority", "tags"},
 			expectedFilters: map[string]string{
-				"user_id":      "user123",
-				"household_id": "house456",
+				"user_uid":      "user123",
+				"household_uid": "house456",
 				"priority":     "3",
 				"tags":         "urgent,work",
 			},
@@ -205,48 +205,48 @@ func TestBuildFiltersFromMCP(t *testing.T) {
 		{
 			name: "with boolean completed filters",
 			arguments: map[string]any{
-				"user_id":       "user123",
+				"user_uid":       "user123",
 				"completed_only": true,
 			},
-			supportedFilters: []string{"user_id", "completed_by"},
+			supportedFilters: []string{"user_uid", "completed_by"},
 			expectedFilters: map[string]string{
-				"user_id":      "user123",
+				"user_uid":      "user123",
 				"completed_by": "NOT NULL",
 			},
 		},
 		{
 			name: "with boolean pending filters",
 			arguments: map[string]any{
-				"user_id":     "user123",
+				"user_uid":     "user123",
 				"pending_only": true,
 			},
-			supportedFilters: []string{"user_id", "completed_by"},
+			supportedFilters: []string{"user_uid", "completed_by"},
 			expectedFilters: map[string]string{
-				"user_id":      "user123",
+				"user_uid":      "user123",
 				"completed_by": "IS NULL",
 			},
 		},
 		{
 			name: "empty values ignored",
 			arguments: map[string]any{
-				"user_id": "user123",
+				"user_uid": "user123",
 				"title":   "",
 				"tags":    "",
 			},
-			supportedFilters: []string{"user_id", "title", "tags"},
+			supportedFilters: []string{"user_uid", "title", "tags"},
 			expectedFilters: map[string]string{
-				"user_id": "user123",
+				"user_uid": "user123",
 			},
 		},
 		{
 			name: "unsupported filters ignored",
 			arguments: map[string]any{
-				"user_id":    "user123",
+				"user_uid":    "user123",
 				"unsupported": "value",
 			},
-			supportedFilters: []string{"user_id"},
+			supportedFilters: []string{"user_uid"},
 			expectedFilters: map[string]string{
-				"user_id": "user123",
+				"user_uid": "user123",
 			},
 		},
 	}

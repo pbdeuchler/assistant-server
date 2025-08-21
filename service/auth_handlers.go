@@ -25,7 +25,7 @@ type AuthConfig struct {
 
 type authDAO interface {
 	CreateCredentials(ctx context.Context, c dao.Credentials) (dao.Credentials, error)
-	GetCredentialsByUserAndType(ctx context.Context, userID, credentialType string) (dao.Credentials, error)
+	GetCredentialsByUserAndType(ctx context.Context, userUID, credentialType string) (dao.Credentials, error)
 	UpdateCredentials(ctx context.Context, id string, c dao.Credentials) (dao.Credentials, error)
 }
 
@@ -185,7 +185,7 @@ func (h *AuthHandlers) googleCallback(w http.ResponseWriter, r *http.Request) {
 
 	credential := dao.Credentials{
 		ID:             uuid.NewString(),
-		UserID:         userID,
+		UserUID:        userID,
 		CredentialType: "GOOGLE_CALENDAR",
 		Value:          tokenJSON,
 	}

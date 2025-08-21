@@ -22,8 +22,8 @@ func TestNotesCreate(t *testing.T) {
 	expectedNote := postgres.Notes{
 		ID:          "generated-id",
 		Key:         "Test Note",
-		UserID:      "user-123",
-		HouseholdID: "household-456",
+		UserUID:      "user-123",
+		HouseholdUID: "household-456",
 		Data:        "This is the content",
 		Tags:        []string{"tag1", "tag2"},
 		CreatedAt:   time.Now(),
@@ -34,8 +34,8 @@ func TestNotesCreate(t *testing.T) {
 		mock.Anything, 
 		mock.MatchedBy(func(n postgres.Notes) bool {
 			return n.Key == "Test Note" && 
-				   n.UserID == "user-123" &&
-				   n.HouseholdID == "household-456" &&
+				   n.UserUID == "user-123" &&
+				   n.HouseholdUID == "household-456" &&
 				   n.Data == "This is the content" &&
 				   len(n.Tags) == 2
 		})).Return(expectedNote, nil)
@@ -44,8 +44,8 @@ func TestNotesCreate(t *testing.T) {
 
 	reqBody := `{
 		"key": "Test Note",
-		"user_id": "user-123",
-		"household_id": "household-456",
+		"user_uid": "user-123",
+		"household_uid": "household-456",
 		"data": "This is the content",
 		"tags": ["tag1", "tag2"]
 	}`
@@ -94,8 +94,8 @@ func TestNotesCreateDAOError(t *testing.T) {
 
 	reqBody := `{
 		"key": "Test Note",
-		"user_id": "user-123",
-		"household_id": "household-456",
+		"user_uid": "user-123",
+		"household_uid": "household-456",
 		"data": "This is the content"
 	}`
 
@@ -116,8 +116,8 @@ func TestNotesGet(t *testing.T) {
 	expectedNote := postgres.Notes{
 		ID:          "test-id",
 		Key:         "Test Note",
-		UserID:      "user-123",
-		HouseholdID: "household-456",
+		UserUID:      "user-123",
+		HouseholdUID: "household-456",
 		Data:        "This is the content",
 		Tags:        []string{"tag1"},
 		CreatedAt:   time.Now(),
@@ -176,8 +176,8 @@ func TestNotesUpdate(t *testing.T) {
 	expectedNote := postgres.Notes{
 		ID:          "test-id",
 		Key:         "Updated Note",
-		UserID:      "user-123",
-		HouseholdID: "household-456",
+		UserUID:      "user-123",
+		HouseholdUID: "household-456",
 		Data:        "Updated content",
 		Tags:        []string{"updated"},
 		CreatedAt:   time.Now(),
@@ -190,8 +190,8 @@ func TestNotesUpdate(t *testing.T) {
 
 	reqBody := `{
 		"key": "Updated Note",
-		"user_id": "user-123",
-		"household_id": "household-456",
+		"user_uid": "user-123",
+		"household_uid": "household-456",
 		"data": "Updated content",
 		"tags": ["updated"]
 	}`
@@ -310,8 +310,8 @@ func TestNotesList(t *testing.T) {
 		{
 			ID:          "test-id-1",
 			Key:         "Test Note 1",
-			UserID:      "user-123",
-			HouseholdID: "household-456",
+			UserUID:      "user-123",
+			HouseholdUID: "household-456",
 			Data:        "Content 1",
 			Tags:        []string{"tag1"},
 			CreatedAt:   time.Now(),
@@ -320,8 +320,8 @@ func TestNotesList(t *testing.T) {
 		{
 			ID:          "test-id-2",
 			Key:         "Test Note 2",
-			UserID:      "user-123",
-			HouseholdID: "household-456",
+			UserUID:      "user-123",
+			HouseholdUID: "household-456",
 			Data:        "Content 2",
 			Tags:        []string{"tag2"},
 			CreatedAt:   time.Now(),

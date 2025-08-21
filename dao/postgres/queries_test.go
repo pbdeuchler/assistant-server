@@ -70,7 +70,7 @@ func TestQueryConstants(t *testing.T) {
 func TestTodoQueries(t *testing.T) {
 	// Test that insertTodo has the correct number of parameters
 	paramCount := strings.Count(insertTodo, "$")
-	expectedParams := 12 // Based on the Todo struct fields being inserted (added user_id and household_id)
+	expectedParams := 12 // Based on the Todo struct fields being inserted (added user_uid and household_uid)
 	
 	if paramCount != expectedParams {
 		t.Errorf("insertTodo should have %d parameters, found %d", expectedParams, paramCount)
